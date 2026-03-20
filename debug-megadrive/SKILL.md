@@ -200,10 +200,45 @@ Z80 printable registers: `a`, `b`, `c`, `d`, `e`, `h`, `l`, `af`, `bc`, `de`, `h
 Use the bundled 68K disassembler for static analysis:
 
 ```bash
-${CLAUDE_SKILL_DIR}/dis <rom-file> | head -200
+${CLAUDE_SKILL_DIR}/dis [options] <rom-file>
 ```
 
-This disassembles the full ROM from the entry point. Pipe through `head` or `grep` to focus on regions of interest.
+### Options
+
+| Flag | Description |
+|------|-------------|
+| `-a` | Show addresses alongside disassembly |
+| `-l` | Produce assembly output with labels (can be re-assembled) |
+| `-o` | Only disassemble addresses specified with `-s` (don't continue past them) |
+| `-s OFFSET` | Start disassembling at hex address OFFSET (can specify multiple times) |
+| `-r` | Start from the reset vector (address at `$000004`) instead of `$000000` |
+| `-f FILE` | Read start addresses from FILE (one hex address per line; `name $ADDR` assigns a label) |
+| `-v` | Treat input as VOS program module format |
+
+### Examples
+
+```bash
+# Disassemble from beginning, show addresses
+${CLAUDE_SKILL_DIR}/dis -a <rom> | head -200
+
+# Disassemble starting from a specific address
+${CLAUDE_SKILL_DIR}/dis -a -s 200 <rom> | head -100
+
+# Start from the reset vector (entry point)
+${CLAUDE_SKILL_DIR}/dis -a -r <rom> | head -100
+
+# Only disassemble specific routines (don't follow past them)
+${CLAUDE_SKILL_DIR}/dis -a -o -s 200 -s 400 <rom>
+
+# Produce re-assemblable output with labels
+${CLAUDE_SKILL_DIR}/dis -l -r <rom> > disassembly.s68
+
+# Use an address file with named labels
+echo -e "main_loop 200\nvblank_handler 78" > addrs.txt
+${CLAUDE_SKILL_DIR}/dis -a -f addrs.txt <rom>
+```
+
+Pipe through `head` or `grep` to focus on regions of interest.
 
 ## Workflow
 
