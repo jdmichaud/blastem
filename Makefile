@@ -31,10 +31,10 @@ SDL2_PREFIX:="sdl/x86_64-w64-mingw32"
 GLUDIR:=x64
 endif
 GLEW32S_LIB:=$(GLEW_PREFIX)/lib/Release/$(GLUDIR)/glew32s.lib
-CFLAGS:=-std=gnu99 -Wreturn-type -Werror=return-type -Werror=implicit-function-declaration -Wpointer-arith -Werror=pointer-arith
+CFLAGS:=-std=gnu99 -Wreturn-type -Werror=return-type -Werror=implicit-function-declaration -Wpointer-arith -Werror=pointer-arith -Wno-incompatible-pointer-types
 LDFLAGS:=-lm -lmingw32 -lws2_32 -mwindows
 ifneq ($(MAKECMDGOALS),libblastem.dll)
-CFLAGS+= -I"$(SDL2_PREFIX)/include/SDL2" -I"$(GLEW_PREFIX)/include" -DGLEW_STATIC
+CFLAGS+= -I"$(SDL2_PREFIX)/include/SDL2" -I"$(GLEW_PREFIX)/include" -DGLEW_STATIC -Wno-incompatible-pointer-types
 LDFLAGS+= $(GLEW32S_LIB) -L"$(SDL2_PREFIX)/lib" -lSDL2main -lSDL2 -lopengl32 -lglu32
 endif
 LIBZOBJS=$(BUNDLED_LIBZ)
@@ -47,7 +47,7 @@ NET:=net.o
 EXE:=
 
 HAS_PROC:=$(shell if [ -d /proc ]; then /bin/echo -e -DHAS_PROC; fi)
-CFLAGS:=-std=gnu99 -Wreturn-type -Werror=return-type -Werror=implicit-function-declaration -Wno-unused-value  -Wpointer-arith -Werror=pointer-arith $(HAS_PROC) -DHAVE_UNISTD_H
+CFLAGS:=-std=gnu99 -Wreturn-type -Werror=return-type -Werror=implicit-function-declaration -Wno-unused-value  -Wpointer-arith -Werror=pointer-arith $(HAS_PROC) -DHAVE_UNISTD_H -Wno-incompatible-pointer-types
 
 ifeq ($(OS),Darwin)
 LIBS=sdl2 glew
@@ -289,12 +289,37 @@ blastem$(EXE) : $(MAINOBJS)
 blastjag$(EXE) : jaguar.o jag_video.o $(RENDEROBJS) serialize.o $(M68KOBJS) $(TRANSOBJS) $(CONFIGOBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
+DBGOBJS=blastdbg.o system.o genesis.o debug.o gdb_remote.o vdp.o render_headless.o io.o romdb.o hash.o menu.o xband.o \
+	realtec.o i2c.o nor.o sega_mapper.o multi_game.o megawifi.o $(NET) serialize.o $(TERMINAL) $(CONFIGOBJS) gst.o \
+	$(M68KOBJS) $(TRANSOBJS) ym2612.o psg.o wave.o vgm.o event_log.o saves.o jcart.o gen_player.o ppm.o controller_info.o
+ifndef NOZLIB
+DBGOBJS+= $(LIBZOBJS) png.o zip.o
+endif
+ifndef NOZ80
+DBGOBJS+= sms.o $(Z80OBJS)
+endif
+
+blastdbg.o : blastdbg.c
+	$(CC) $(CFLAGS) -DIS_LIB -c -o $@ $<
+
+render_headless.o : render_headless.c
+	$(CC) $(CFLAGS) -DIS_LIB -c -o $@ $<
+
+blastdbg$(EXE) : $(DBGOBJS)
+	$(CC) -o $@ $^ -lm -lz
+
+blastdbg-static$(EXE) : $(DBGOBJS)
+	$(CC) -static -o $@ $^ -lm -lz -lpthread
+
 termhelper : termhelper.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 dis$(EXE) : dis.o 68kinst.o tern.o vos_program_module.o
 	$(CC) -o $@ $^ $(OPT)
-	
+
+dis-static$(EXE) : dis.o 68kinst.o tern.o vos_program_module.o
+	$(CC) -static -o $@ $^ $(OPT)
+
 jagdis : jagdis.o jagcpu.o tern.o
 	$(CC) -o $@ $^
 
