@@ -690,6 +690,91 @@ static void dump_vdp_memory(vdp_context *vdp, char *prefix)
 	write_dump_file(prefix, ".regs", vdp->regs, VDP_REGS);
 }
 
+static const char *button_names[] = {
+	[DPAD_UP] = "up",
+	[DPAD_DOWN] = "down",
+	[DPAD_LEFT] = "left",
+	[DPAD_RIGHT] = "right",
+	[BUTTON_A] = "a",
+	[BUTTON_B] = "b",
+	[BUTTON_C] = "c",
+	[BUTTON_START] = "start",
+	[BUTTON_X] = "x",
+	[BUTTON_Y] = "y",
+	[BUTTON_Z] = "z",
+	[BUTTON_MODE] = "mode"
+};
+//buttons currently held down by the debugger, indexed by gamepad number
+static uint16_t pads_held[3];
+
+static void print_pad_state(uint8_t pad)
+{
+	printf("Pad %d:", pad);
+	if (!pads_held[pad]) {
+		fputs(" none", stdout);
+	}
+	for (int i = DPAD_UP; i <= BUTTON_MODE; i++)
+	{
+		if (pads_held[pad] & (1 << i)) {
+			printf(" %s", button_names[i]);
+		}
+	}
+	putchar('\n');
+}
+
+static void gamepad_command(genesis_context *gen, char *input_buf)
+{
+	uint8_t press = input_buf[1] == 'p';
+	if (!press && input_buf[1] != 'r') {
+		print_pad_state(1);
+		print_pad_state(2);
+		return;
+	}
+	uint8_t pad = 1;
+	char *param = find_param(input_buf);
+	char *tok = param ? strtok(param, " ") : NULL;
+	if (tok && (tok[0] == '1' || tok[0] == '2') && !tok[1]) {
+		pad = tok[0] - '0';
+		tok = strtok(NULL, " ");
+	}
+	if (!tok) {
+		if (press) {
+			fputs("jp command requires at least one button\n", stderr);
+			return;
+		}
+		//jr with no buttons releases everything on the pad
+		for (int i = DPAD_UP; i <= BUTTON_MODE; i++)
+		{
+			if (pads_held[pad] & (1 << i)) {
+				gen->header.gamepad_up(&gen->header, pad, i);
+			}
+		}
+		pads_held[pad] = 0;
+	}
+	for (; tok; tok = strtok(NULL, " "))
+	{
+		int button;
+		for (button = DPAD_UP; button <= BUTTON_MODE; button++)
+		{
+			if (!strcasecmp(tok, button_names[button])) {
+				break;
+			}
+		}
+		if (button > BUTTON_MODE) {
+			fprintf(stderr, "Unknown button %s\n", tok);
+			continue;
+		}
+		if (press) {
+			gen->header.gamepad_down(&gen->header, pad, button);
+			pads_held[pad] |= 1 << button;
+		} else {
+			gen->header.gamepad_up(&gen->header, pad, button);
+			pads_held[pad] &= ~(1 << button);
+		}
+	}
+	print_pad_state(pad);
+}
+
 int run_debugger_command(m68k_context *context, uint32_t address, char *input_buf, m68kinst inst, uint32_t after)
 {
 	char * param;
@@ -1020,6 +1105,9 @@ int run_debugger_command(m68k_context *context, uint32_t address, char *input_bu
 			}
 			fprintf(stderr, "Unrecognized debugger command %s\nUse '?' for help.\n", input_buf);
 			break;
+		case 'j':
+			gamepad_command(system, input_buf);
+			break;
 		case 'y': {
 			genesis_context * gen = context->system;
 			//YM-2612 debug commands
@@ -1113,6 +1201,9 @@ void print_m68k_help()
 	printf("    ss FILE [SCALE]      - Save the last completed frame as PNG (or PPM\n");
 	printf("                           if FILE ends in .ppm), optionally upscaled\n");
 	printf("    fr [N]               - Run N frames (default 1), then break\n");
+	printf("    jp [PAD] BUTTON...   - Press and hold gamepad buttons (PAD 1 or 2)\n");
+	printf("    jr [PAD] [BUTTON...] - Release gamepad buttons (all if none given)\n");
+	printf("    j                    - Show held gamepad buttons\n");
 	printf("    yc [CHANNEL NUM]     - Print YM-2612 channel info\n");
 	printf("    yt                   - Print YM-2612 timer info\n");
 	printf("    zb ADDRESS           - Set a Z80 breakpoint\n");

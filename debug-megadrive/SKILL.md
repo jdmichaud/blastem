@@ -65,6 +65,36 @@ Notes:
 - Delete or avoid breakpoints in code that runs every frame (e.g. the VBlank handler) before using `fr`, or it will stop there instead.
 - Boot, logos and intros often take several hundred frames. Take screenshots along the way to see where the game is.
 
+## Controller input
+
+Pads 1 and 2 are 6-button gamepads. Button names (case-insensitive): `up`, `down`, `left`, `right`, `a`, `b`, `c`, `start`, `x`, `y`, `z`, `mode`.
+
+`jp` holds buttons down until `jr` releases them, so combine them with `fr` to press for a given number of frames. Most games read the pad once per frame and react on a new press, so:
+- hold a button for a few frames (`fr 5`) so the game sees it,
+- release it and let a few frames pass before pressing the same button again,
+- wait for screen transitions (`fr 60` or more) before the next input.
+
+Tap Start, wait one second, then screenshot:
+
+```bash
+timeout 60 bash -c 'printf "fr 600\njp start\nfr 5\njr\nfr 60\nss /tmp/menu.png\nq\n" | ${CLAUDE_SKILL_DIR}/blastdbg <rom>'
+```
+
+Hold right for 1.5 seconds, then press A and C together on pad 1, and B on pad 2:
+
+```
+jp right
+fr 90
+jr
+jp a c
+jp 2 b
+fr 5
+jr 1
+jr 2
+```
+
+Every run starts from power-on, so to reach a given point in the game, replay the whole input sequence. Build it up step by step, checking with `ss` each time.
+
 ## Dumping VDP memory
 
 `vd PREFIX` writes four files:
@@ -118,6 +148,9 @@ This is `ADDRESS: DISASSEMBLED_INSTRUCTION`. Each `>` in the output corresponds 
 | `vd PREFIX` | Dump VRAM, CRAM, VSRAM and VDP registers to `PREFIX.vram`, `.cram`, `.vsram`, `.regs` |
 | `ss FILE [SCALE]` | Save the last completed frame as PNG (PPM if FILE ends in `.ppm`), upscaled by SCALE (1-8) |
 | `fr [N]` | Run N frames (default 1), then break |
+| `jp [PAD] BUTTON...` | Press and hold gamepad buttons (PAD is 1 or 2, default 1) |
+| `jr [PAD] [BUTTON...]` | Release gamepad buttons (all buttons on the pad if none given) |
+| `j` | Show buttons currently held on both pads |
 | `yc [N]` | Print YM-2612 channel info (all, or channel N: 1-6) |
 | `yt` | Print YM-2612 timer info |
 | `zb ADDRESS` | Set a Z80 breakpoint |
