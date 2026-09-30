@@ -303,6 +303,7 @@ static void print_usage(void)
 		"  -r (J|U|E)  Force region\n"
 		"  -m MACHINE  Force machine type (sms, gen)\n"
 		"  -n          Disable Z80\n"
+		"  -p (3|6)    Gamepad type for both pads (default 3-button)\n"
 		"  -h          Print this help\n",
 		BLASTEM_VERSION
 	);
@@ -319,6 +320,7 @@ int main(int argc, char **argv)
 	uint8_t force_region = 0;
 	uint32_t opts = 0;
 	system_media cart = {0};
+	uint8_t pad_type = 3;
 
 	for (int i = 1; i < argc; i++) {
 		if (argv[i][0] == '-') {
@@ -348,6 +350,13 @@ int main(int argc, char **argv)
 				break;
 			case 'n':
 				z80_enabled = 0;
+				break;
+			case 'p':
+				i++;
+				if (i >= argc || (strcmp(argv[i], "3") && strcmp(argv[i], "6"))) {
+					fatal_error("-p must be followed by 3 or 6\n");
+				}
+				pad_type = argv[i][0] - '0';
 				break;
 			case 'h':
 				print_usage();
@@ -379,6 +388,8 @@ int main(int argc, char **argv)
 		fatal_error("Failed to detect system type for %s\n", romfname);
 	}
 
+	config = tern_insert_path(config, "io\0devices\0" "1\0", (tern_val){.ptrval = pad_type == 3 ? "gamepad3.1" : "gamepad6.1"}, TVAL_PTR);
+	config = tern_insert_path(config, "io\0devices\0" "2\0", (tern_val){.ptrval = pad_type == 3 ? "gamepad3.2" : "gamepad6.2"}, TVAL_PTR);
 	current_system = alloc_config_system(stype, &cart, opts, force_region);
 	if (!current_system) {
 		fatal_error("Failed to configure emulated machine for %s\n", romfname);

@@ -26,6 +26,8 @@ ${CLAUDE_SKILL_DIR}/blastdbg <rom-file>
 
 It starts the debugger immediately at the ROM entry point, prints the first instruction, and waits for commands on stdin.
 
+Options: `-p 3|6` pad type (default 3-button), `-r J|U|E` force the region, `-n` disable the Z80, `-h` help.
+
 ## Sending commands non-interactively
 
 Pipe commands via stdin. Always wrap with `timeout` to prevent hangs, and always end with `q` to exit cleanly:
@@ -69,7 +71,7 @@ Notes:
 
 ## Controller input
 
-Pads 1 and 2 are 6-button gamepads. Button names (case-insensitive): `up`, `down`, `left`, `right`, `a`, `b`, `c`, `start`, `x`, `y`, `z`, `mode`.
+Pads 1 and 2 are 3-button gamepads by default, the pad most games were written for. Start blastdbg with `-p 6` for 6-button pads. Button names (case-insensitive): `up`, `down`, `left`, `right`, `a`, `b`, `c`, `start`, `x`, `y`, `z`, `mode`. On a 3-button pad `x`, `y`, `z` and `mode` have no effect.
 
 `jp` holds buttons down until `jr` releases them, so combine them with `fr` to press for a given number of frames. Most games read the pad once per frame and react on a new press, so:
 - hold a button for a few frames (`fr 5`) so the game sees it,
