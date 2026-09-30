@@ -599,7 +599,7 @@ int run_debugger_command(m68k_context *context, uint32_t address, char *input_bu
 			{
 				puts("Continuing");
 				return 0;
-			} else if (input_buf[1] == 'o' && input_buf[2] == 'm') {
+			} else if (input_buf[1] == 'o' && (input_buf[2] == 'm' || input_buf[2] == ' ')) {
 				param = find_param(input_buf);
 				if (!param) {
 					fputs("com command requires a parameter\n", stderr);
