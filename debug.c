@@ -649,6 +649,47 @@ static void save_screenshot(vdp_context *vdp, char *param)
 	printf("Saved %dx%d screenshot to %s\n", out_width, out_height, param);
 }
 
+static void write_dump_file(char *prefix, char *extension, uint8_t *data, uint32_t size)
+{
+	char *path = alloc_concat(prefix, extension);
+	FILE *f = fopen(path, "wb");
+	if (f) {
+		if (fwrite(data, 1, size, f) != size) {
+			fprintf(stderr, "Error writing %s\n", path);
+		} else {
+			printf("Wrote %d bytes to %s\n", size, path);
+		}
+		fclose(f);
+	} else {
+		fprintf(stderr, "Could not open %s for writing\n", path);
+	}
+	free(path);
+}
+
+static void dump_vdp_memory(vdp_context *vdp, char *prefix)
+{
+	if (!prefix) {
+		fputs("vd command requires a file name prefix\n", stderr);
+		return;
+	}
+	//CRAM and VSRAM are dumped as big endian words to match VRAM and the 68K's view of the data port
+	uint8_t buf[MAX_VSRAM_SIZE * 2];
+	write_dump_file(prefix, ".vram", vdp->vdpmem, VRAM_SIZE);
+	for (int i = 0; i < CRAM_SIZE; i++)
+	{
+		buf[i*2] = vdp->cram[i] >> 8;
+		buf[i*2+1] = vdp->cram[i];
+	}
+	write_dump_file(prefix, ".cram", buf, CRAM_SIZE * 2);
+	for (int i = 0; i < vdp->vsram_size; i++)
+	{
+		buf[i*2] = vdp->vsram[i] >> 8;
+		buf[i*2+1] = vdp->vsram[i];
+	}
+	write_dump_file(prefix, ".vsram", buf, vdp->vsram_size * 2);
+	write_dump_file(prefix, ".regs", vdp->regs, VDP_REGS);
+}
+
 int run_debugger_command(m68k_context *context, uint32_t address, char *input_buf, m68kinst inst, uint32_t after)
 {
 	char * param;
@@ -959,6 +1000,9 @@ int run_debugger_command(m68k_context *context, uint32_t address, char *input_bu
 			case 'r':
 				vdp_print_reg_explain(gen->vdp);
 				break;
+			case 'd':
+				dump_vdp_memory(gen->vdp, find_param(input_buf));
+				break;
 			}
 			break;
 		}
@@ -1064,6 +1108,8 @@ void print_m68k_help()
 	printf("                           a breakpoint is hit\n");
 	printf("    vs                   - Print VDP sprite list\n");
 	printf("    vr                   - Print VDP register info\n");
+	printf("    vd PREFIX            - Dump VRAM, CRAM, VSRAM and VDP registers to\n");
+	printf("                           PREFIX.vram, .cram, .vsram and .regs\n");
 	printf("    ss FILE [SCALE]      - Save the last completed frame as PNG (or PPM\n");
 	printf("                           if FILE ends in .ppm), optionally upscaled\n");
 	printf("    fr [N]               - Run N frames (default 1), then break\n");

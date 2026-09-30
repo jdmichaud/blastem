@@ -65,6 +65,19 @@ Notes:
 - Delete or avoid breakpoints in code that runs every frame (e.g. the VBlank handler) before using `fr`, or it will stop there instead.
 - Boot, logos and intros often take several hundred frames. Take screenshots along the way to see where the game is.
 
+## Dumping VDP memory
+
+`vd PREFIX` writes four files:
+
+| File | Size | Contents |
+|------|------|----------|
+| `PREFIX.vram` | 64 KB | VRAM, in the same byte order the 68K sees through the data port (big endian words). Tiles are 32 bytes each (8x8, 4 bits per pixel, 4 bytes per row, high nibble = left pixel) |
+| `PREFIX.cram` | 128 bytes | 64 palette entries as big endian words `0000BBB0GGG0RRR0` (4 palettes of 16 colors) |
+| `PREFIX.vsram` | 80 bytes | 40 vertical scroll words |
+| `PREFIX.regs` | 24 bytes | VDP registers 0-23 (decoded with `vr`) |
+
+Use `vr` to find where plane A/B, the window, the sprite table and the horizontal scroll table live in VRAM, then read those regions from the dump (e.g. with Python) to decode tile maps, sprites or scroll values. VRAM, CRAM and VSRAM are not visible in the 68K address space, so `p` cannot read them.
+
 ## Understanding the output
 
 When the debugger stops (at entry or a breakpoint), it prints the current instruction:
@@ -102,6 +115,7 @@ This is `ADDRESS: DISASSEMBLED_INSTRUCTION`. Each `>` in the output corresponds 
 | `sr` | Soft reset the emulated system |
 | `vs` | Print VDP sprite table |
 | `vr` | Print VDP register info |
+| `vd PREFIX` | Dump VRAM, CRAM, VSRAM and VDP registers to `PREFIX.vram`, `.cram`, `.vsram`, `.regs` |
 | `ss FILE [SCALE]` | Save the last completed frame as PNG (PPM if FILE ends in `.ppm`), upscaled by SCALE (1-8) |
 | `fr [N]` | Run N frames (default 1), then break |
 | `yc [N]` | Print YM-2612 channel info (all, or channel N: 1-6) |
@@ -273,7 +287,7 @@ Pipe through `head` or `grep` to focus on regions of interest.
 
 4. **Set breakpoints** at addresses of interest, `c` to continue, then inspect state when they hit.
 
-5. **Inspect VDP state** with `vr` (registers) and `vs` (sprites) to understand graphics.
+5. **Look at the screen** with `fr` + `ss` + Read. Inspect VDP state with `vr` (registers) and `vs` (sprites), and dump VRAM/CRAM/VSRAM with `vd` to understand graphics.
 
 6. **Inspect sound** with `yc` (FM channels) and `yt` (timers) for audio debugging.
 
