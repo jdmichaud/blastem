@@ -42,6 +42,8 @@ For commands that involve `c` (continue) or `a ADDRESS` (advance), the debugger 
 timeout 30 bash -c 'printf "n\nn\nn\nn\nn\np/x pc\np/x d0\nq\n" | ${CLAUDE_SKILL_DIR}/blastdbg <rom>'
 ```
 
+**Always end with `q`**: stdout is buffered when piped, so if `timeout` kills the process, all of its output is lost, including the output of commands that ran before the hang.
+
 **Breakpoint with continue**: set a breakpoint, continue, then inspect when it hits:
 
 ```bash
