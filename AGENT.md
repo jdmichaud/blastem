@@ -63,6 +63,10 @@ The `headless` global (declared in `blastem.h`) controls headless operation:
 
 The built-in debugger (`debug.c`) is GDB-inspired. Launch with `-d` flag (or `blastdbg` which always enters the debugger). Key commands: `b` (breakpoint), `n` (step over), `s` (step into), `c` (continue), `p` (print), `bt` (backtrace), `vr` (VDP registers), `vs` (sprites), `yc` (YM2612 channels).
 
+Commands for inspecting the screen and driving the game: `fr N` (run N frames, then break), `ss FILE [SCALE]` (save the last completed frame as PNG/PPM), `vd PREFIX` (dump VRAM/CRAM/VSRAM/registers), `jp`/`jr [PAD] BUTTON...` (press/release gamepad buttons), `j` (show held buttons).
+
+In headless mode the VDP double-buffers its framebuffer (`headless_fbs` in `vdp_context`): at the end of each frame the finished buffer becomes `done_fb`, and `vdp_get_last_frame()` returns its active display area. `fr` is implemented by `debug_frame_break`/`debug_frame_target` in `genesis_context`, checked in `sync_components()` when the VDP frame counter changes.
+
 The `-t` flag (`force_no_terminal()`) prevents BlastEm from spawning an xterm when stdin is not a TTY. This is essential for piped/scripted debugger use with the full `blastem` binary. `blastdbg` handles this automatically.
 
 ## Code style
