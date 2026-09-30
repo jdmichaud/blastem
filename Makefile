@@ -142,6 +142,8 @@ endif #DEBUG
 endif #OPT
 
 CFLAGS:=$(OPT) $(CFLAGS)
+#track header dependencies so changing a header rebuilds every object that includes it
+CFLAGS+= -MMD -MP
 LDFLAGS:=$(OPT) $(LDFLAGS)
 
 ifdef Z80_LOG_ADDRESS
@@ -420,4 +422,6 @@ menu.bin : font_interlace_variable.tiles arrow.tiles cursor.tiles button.tiles f
 tmss.md : font.tiles
 
 clean :
-	rm -rf $(ALL) trans ztestrun ztestgen *.o nuklear_ui/*.o zlib/*.o
+	rm -rf $(ALL) trans ztestrun ztestgen *.o nuklear_ui/*.o zlib/*.o *.d nuklear_ui/*.d zlib/*.d
+
+-include $(wildcard *.d nuklear_ui/*.d zlib/*.d)

@@ -26,3 +26,4 @@ gen_fib
 offsets
 core.*
 __pycache__/
+*.d
