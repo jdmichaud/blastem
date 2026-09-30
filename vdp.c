@@ -150,7 +150,9 @@ vdp_context *init_vdp_context(uint8_t region_pal, uint8_t has_max_vsram)
 {
 	vdp_context *context = calloc(1, sizeof(vdp_context) + VRAM_SIZE);
 	if (headless) {
-		context->fb = malloc(512 * LINEBUF_SIZE * sizeof(uint32_t));
+		context->headless_fbs[0] = calloc(2 * 512 * LINEBUF_SIZE, sizeof(uint32_t));
+		context->headless_fbs[1] = context->headless_fbs[0] + 512 * LINEBUF_SIZE;
+		context->fb = context->headless_fbs[0];
 		context->output_pitch = LINEBUF_SIZE * sizeof(uint32_t);
 	} else {
 		context->cur_buffer = FRAMEBUFFER_ODD;
@@ -255,7 +257,7 @@ vdp_context *init_vdp_context(uint8_t region_pal, uint8_t has_max_vsram)
 void vdp_free(vdp_context *context)
 {
 	if (headless) {
-		free(context->fb);
+		free(context->headless_fbs[0]);
 	}
 	for (int i = 0; i < VDP_NUM_DEBUG_TYPES; i++)
 	{
@@ -2090,7 +2092,7 @@ static void vdp_update_per_frame_debug(vdp_context *context)
 
 void vdp_force_update_framebuffer(vdp_context *context)
 {
-	if (!context->fb) {
+	if (!context->fb || headless) {
 		return;
 	}
 	uint16_t lines_max = context->inactive_start + context->border_bot + context->border_top;
@@ -2104,6 +2106,17 @@ void vdp_force_update_framebuffer(vdp_context *context)
 	render_framebuffer_updated(context->cur_buffer, context->h40_lines > context->output_lines / 2 ? LINEBUF_SIZE : (256+HORIZ_BORDER));
 	context->fb = render_get_framebuffer(context->cur_buffer, &context->output_pitch);
 	vdp_update_per_frame_debug(context);
+}
+
+uint32_t *vdp_get_last_frame(vdp_context *context, uint32_t *width, uint32_t *height, uint32_t *pitch)
+{
+	if (!context->done_fb) {
+		return NULL;
+	}
+	*width = context->done_fb_width;
+	*height = context->done_fb_height;
+	*pitch = context->output_pitch;
+	return (uint32_t *)(((char *)context->done_fb) + context->output_pitch * context->done_fb_top) + BORDER_LEFT;
 }
 
 static void advance_output_line(vdp_context *context)
@@ -2127,6 +2140,13 @@ static void advance_output_line(vdp_context *context)
 			context->cur_buffer = is_even ? FRAMEBUFFER_EVEN : FRAMEBUFFER_ODD;
 			context->pushed_frame = 1;
 			context->fb = NULL;
+		} else {
+			//keep the completed frame around for screenshots and draw the next one in the other buffer
+			context->done_fb = context->fb;
+			context->done_fb_width = context->h40_lines > (context->inactive_start + context->border_top) / 2 ? 320 : 256;
+			context->done_fb_height = context->inactive_start;
+			context->done_fb_top = context->border_top + context->top_offset;
+			context->fb = context->fb == context->headless_fbs[0] ? context->headless_fbs[1] : context->headless_fbs[0];
 		}
 		vdp_update_per_frame_debug(context);
 		context->h40_lines = 0;

@@ -245,6 +245,12 @@ typedef struct {
 	uint8_t        debug_fb_indices[VDP_NUM_DEBUG_TYPES];
 	uint8_t        debug_modes[VDP_NUM_DEBUG_TYPES];
 	uint8_t        pushed_frame;
+	//headless mode double buffering, done_fb holds the last completed frame
+	uint32_t       *headless_fbs[2];
+	uint32_t       *done_fb;
+	uint16_t       done_fb_width;
+	uint16_t       done_fb_height;
+	uint16_t       done_fb_top;
 	uint8_t        vdpmem[];
 } vdp_context;
 
@@ -288,6 +294,7 @@ void vdp_reacquire_framebuffer(vdp_context *context);
 void vdp_serialize(vdp_context *context, serialize_buffer *buf);
 void vdp_deserialize(deserialize_buffer *buf, void *vcontext);
 void vdp_force_update_framebuffer(vdp_context *context);
+uint32_t *vdp_get_last_frame(vdp_context *context, uint32_t *width, uint32_t *height, uint32_t *pitch);
 void vdp_toggle_debug_view(vdp_context *context, uint8_t debug_type);
 void vdp_inc_debug_mode(vdp_context *context);
 //to be implemented by the host system
