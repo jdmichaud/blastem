@@ -96,6 +96,7 @@ void init_z80_opts(z80_options * options, memmap_chunk const * chunks, uint32_t 
 void z80_options_free(z80_options *opts);
 z80_context * init_z80_context(z80_options * options);
 code_ptr z80_get_native_address(z80_context * context, uint32_t address);
+uint32_t z80_dump_translated(z80_options *opts, FILE *f);
 code_ptr z80_get_native_address_trans(z80_context * context, uint32_t address);
 z80_context * z80_handle_code_write(uint32_t address, z80_context * context);
 void z80_invalidate_code_range(z80_context *context, uint32_t start, uint32_t end);

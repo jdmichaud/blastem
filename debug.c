@@ -690,6 +690,38 @@ static void dump_vdp_memory(vdp_context *vdp, char *prefix)
 	write_dump_file(prefix, ".regs", vdp->regs, VDP_REGS);
 }
 
+static void dump_translated(genesis_context *gen, char *param)
+{
+	if (!param) {
+		fputs("ta command requires a file name\n", stderr);
+		return;
+	}
+	char *z80_path = find_param(param);
+	if (z80_path) {
+		z80_path[-1] = 0;
+	}
+	FILE *f = fopen(param, "w");
+	if (!f) {
+		fprintf(stderr, "Could not open %s for writing\n", param);
+		return;
+	}
+	uint32_t count = m68k_dump_translated(gen->m68k->options, f);
+	fclose(f);
+	printf("Wrote %d 68K instruction addresses to %s\n", count, param);
+#ifndef NO_Z80
+	if (z80_path) {
+		f = fopen(z80_path, "w");
+		if (!f) {
+			fprintf(stderr, "Could not open %s for writing\n", z80_path);
+			return;
+		}
+		count = z80_dump_translated(gen->z80->options, f);
+		fclose(f);
+		printf("Wrote %d Z80 instruction addresses to %s\n", count, z80_path);
+	}
+#endif
+}
+
 static const char *button_names[] = {
 	[DPAD_UP] = "up",
 	[DPAD_DOWN] = "down",
@@ -1108,6 +1140,13 @@ int run_debugger_command(m68k_context *context, uint32_t address, char *input_bu
 		case 'j':
 			gamepad_command(system, input_buf);
 			break;
+		case 't':
+			if (input_buf[1] == 'a') {
+				dump_translated(system, find_param(input_buf));
+				break;
+			}
+			fprintf(stderr, "Unrecognized debugger command %s\nUse '?' for help.\n", input_buf);
+			break;
 		case 'y': {
 			genesis_context * gen = context->system;
 			//YM-2612 debug commands
@@ -1204,6 +1243,8 @@ void print_m68k_help()
 	printf("    jp [PAD] BUTTON...   - Press and hold gamepad buttons (PAD 1 or 2)\n");
 	printf("    jr [PAD] [BUTTON...] - Release gamepad buttons (all if none given)\n");
 	printf("    j                    - Show held gamepad buttons\n");
+	printf("    ta FILE [ZFILE]      - Write the start address of every translated 68K\n");
+	printf("                           (and Z80) instruction, one hex address per line\n");
 	printf("    yc [CHANNEL NUM]     - Print YM-2612 channel info\n");
 	printf("    yt                   - Print YM-2612 timer info\n");
 	printf("    zb ADDRESS           - Set a Z80 breakpoint\n");

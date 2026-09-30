@@ -78,6 +78,27 @@ memmap_chunk const *find_map_chunk(uint32_t address, cpu_options *opts, uint16_t
 	return NULL;
 }
 
+//writes the start address of every translated instruction, one hex address per line, returns the number written
+uint32_t dump_translated_addresses(native_map_slot *map, uint32_t num_chunks, uint32_t chunk_size, FILE *f, int digits)
+{
+	uint32_t count = 0;
+	for (uint32_t chunk = 0; chunk < num_chunks; chunk++)
+	{
+		if (!map[chunk].base) {
+			continue;
+		}
+		for (uint32_t offset = 0; offset < chunk_size; offset++)
+		{
+			int32_t native = map[chunk].offsets[offset];
+			if (native != (int32_t)INVALID_OFFSET && native != (int32_t)EXTENSION_WORD) {
+				fprintf(f, "%0*X\n", digits, chunk * chunk_size + offset);
+				count++;
+			}
+		}
+	}
+	return count;
+}
+
 void * get_native_pointer(uint32_t address, void ** mem_pointers, cpu_options * opts)
 {
 	memmap_chunk const * memmap = opts->memmap;

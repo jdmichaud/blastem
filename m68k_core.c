@@ -670,6 +670,11 @@ code_ptr get_native_from_context(m68k_context * context, uint32_t address)
 	return get_native_address(context->options, address);
 }
 
+uint32_t m68k_dump_translated(m68k_options *opts, FILE *f)
+{
+	return dump_translated_addresses(opts->gen.native_code_map, NATIVE_MAP_CHUNKS, NATIVE_CHUNK_SIZE, f, 6);
+}
+
 uint32_t get_instruction_start(m68k_options *opts, uint32_t address)
 {
 	native_map_slot * native_code_map = opts->gen.native_code_map;

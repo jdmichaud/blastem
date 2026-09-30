@@ -110,6 +110,16 @@ Every run starts from power-on, so to reach a given point in the game, replay th
 
 Use `vr` to find where plane A/B, the window, the sprite table and the horizontal scroll table live in VRAM, then read those regions from the dump (e.g. with Python) to decode tile maps, sprites or scroll values. VRAM, CRAM and VSRAM are not visible in the 68K address space, so `p` cannot read them.
 
+## Translated code addresses
+
+`ta FILE [ZFILE]` writes the start address of every instruction the JIT has translated since power-on: 68K addresses to FILE (6 hex digits per line, sorted), Z80 addresses to ZFILE (4 hex digits). Run the game through the parts you care about first, then dump:
+
+```bash
+timeout 120 bash -c 'printf "fr 3000\nta /tmp/code.68k /tmp/code.z80\nq\n" | ${CLAUDE_SKILL_DIR}/blastdbg <rom>'
+```
+
+This is an over-approximation of executed code: the JIT translates code ahead of execution, including both sides of conditional branches, whether or not they were taken. Treat the addresses as instruction starts and entry points for a disassembler, not as proof of execution. Mirrored addresses are reported at their lowest alias (work RAM code at `$E00000`-based addresses, Z80 RAM at `$0000`-`$1FFF`).
+
 ## Understanding the output
 
 When the debugger stops (at entry or a breakpoint), it prints the current instruction:
@@ -153,6 +163,7 @@ This is `ADDRESS: DISASSEMBLED_INSTRUCTION`. Each `>` in the output corresponds 
 | `jp [PAD] BUTTON...` | Press and hold gamepad buttons (PAD is 1 or 2, default 1) |
 | `jr [PAD] [BUTTON...]` | Release gamepad buttons (all buttons on the pad if none given) |
 | `j` | Show buttons currently held on both pads |
+| `ta FILE [ZFILE]` | Write the start address of every 68K (and Z80) instruction translated so far, one hex address per line |
 | `yc [N]` | Print YM-2612 channel info (all, or channel N: 1-6) |
 | `yt` | Print YM-2612 timer info |
 | `zb ADDRESS` | Set a Z80 breakpoint |

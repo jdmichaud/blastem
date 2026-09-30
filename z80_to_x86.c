@@ -2883,6 +2883,11 @@ code_info z80_make_interp_stub(z80_context * context, uint16_t address)
 }
 
 
+uint32_t z80_dump_translated(z80_options *opts, FILE *f)
+{
+	return dump_translated_addresses(opts->gen.native_code_map, NATIVE_MAP_CHUNKS, NATIVE_CHUNK_SIZE, f, 4);
+}
+
 uint8_t * z80_get_native_address(z80_context * context, uint32_t address)
 {
 	z80_options *opts = context->options;
