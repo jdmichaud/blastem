@@ -2494,6 +2494,9 @@ void nop_fill_or_jmp_next(code_info *code, code_ptr old_end, code_ptr next_inst)
 m68k_context * m68k_handle_code_write(uint32_t address, m68k_context * context)
 {
 	m68k_options * options = context->options;
+	if (context->write_watch) {
+		context->write_watch(context, address);
+	}
 	uint32_t inst_start = get_instruction_start(options, address);
 	while (inst_start && (address - inst_start) < M68K_MAX_INST_SIZE) {
 		code_ptr dst = get_native_address(context->options, inst_start);

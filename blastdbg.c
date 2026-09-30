@@ -27,6 +27,7 @@
 #include "zip.h"
 #include "saves.h"
 #include "trace.h"
+#include "debug.h"
 
 #ifndef DISABLE_ZLIB
 #include "zlib/zlib.h"
@@ -313,6 +314,7 @@ static void print_usage(void)
 		"  --record LIST            Extra state per record: vram,cram,vsram,regs,z80 or all\n"
 		"  --screenshots DIR        Save a PNG of the frame before each recorded VBlank\n"
 		"  --screenshot-every N     Only every Nth recorded VBlank (default 1)\n"
+		"  --watch START[-END]      Print every write to this work RAM range (hex, repeatable)\n"
 		"  --translated FILE        At the end, write every translated 68K instruction address\n"
 		"  --translated-z80 FILE    Same for the Z80\n",
 		BLASTEM_VERSION
@@ -331,6 +333,8 @@ int main(int argc, char **argv)
 	uint32_t opts = 0;
 	system_media cart = {0};
 	uint8_t pad_type = 3;
+	uint32_t watches[16][2];
+	uint32_t num_watches = 0;
 	trace_options trace = {
 		.last_frame = 599,
 		.screenshot_every = 1
@@ -372,6 +376,17 @@ int main(int argc, char **argv)
 					}
 				}
 				free(copy);
+			} else if (!strcmp(opt, "watch")) {
+				if (num_watches == 16) {
+					fatal_error("At most 16 --watch ranges are supported\n");
+				}
+				uint32_t *range = watches[num_watches++];
+				int fields = sscanf(param, "%x-%x", range, range + 1);
+				if (fields == 1) {
+					range[1] = range[0] + 1;
+				} else if (fields != 2) {
+					fatal_error("--watch expects START[-END] in hex, got %s\n", param);
+				}
 			} else if (!strcmp(opt, "translated")) {
 				trace.translated_path = param;
 			} else if (!strcmp(opt, "translated-z80")) {
@@ -470,6 +485,12 @@ int main(int argc, char **argv)
 		trace.pad_type = pad_type;
 		genesis_context *gen = (genesis_context *)current_system;
 		gen->trace = trace_start(gen, &trace);
+		for (uint32_t i = 0; i < num_watches; i++)
+		{
+			if (!add_write_watch(gen->m68k, watches[i][0], watches[i][1])) {
+				fatal_error("Cannot watch %X-%X: only work RAM can be watched\n", watches[i][0], watches[i][1]);
+			}
+		}
 		force_no_terminal();
 		current_system->start_context(current_system, NULL);
 		return 0;

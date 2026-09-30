@@ -131,6 +131,23 @@ python3 ${CLAUDE_SKILL_DIR}/bdtrace.py writes /tmp/run.trc 600
 python3 ${CLAUDE_SKILL_DIR}/bdtrace.py diff a.trc b.trc       # first difference
 ```
 
+## Watching RAM writes
+
+`ww START [END]` reports every 68K write to a work RAM range without stopping, while `c`, `fr` or stepping runs the game. Addresses are hex, `$E00000`-`$FFFFFF` (reported at their `$FF0000` alias), and END defaults to START+1 (one word). Up to 16 ranges.
+
+```bash
+timeout 60 bash -c 'printf "ww FFFB06\nfr 200\nq\n" | ${CLAUDE_SKILL_DIR}/blastdbg <rom>'
+```
+```
+Write $FFFB06.w = $003F pc=01A074 vblank=158 cycle=142370200
+```
+
+- The value is read back after the write. An odd address is a byte write (`.b`). An even address shows the whole word (`.w`), which may have been written as a word or as its high byte.
+- A long write shows as two word writes (high word first).
+- `pc` is the exact start of the writing instruction, `vblank` the most recent VBlank (-1 before the first), `cycle` the master clock cycle since power-on (the same clock as trace files).
+- Only 68K writes are seen, not DMA or Z80 bank-window writes. Watching does not change emulation or timing; each write in a watched 2 KB page costs a call into C, so large ranges are slower.
+- `--watch START[-END]` does the same in trace mode (see below).
+
 ## Translated code addresses
 
 `ta FILE [ZFILE]` writes the start address of every instruction the JIT has translated since power-on: 68K addresses to FILE (6 hex digits per line, sorted), Z80 addresses to ZFILE (4 hex digits). Run the game through the parts you care about first, then dump:
@@ -184,6 +201,8 @@ This is `ADDRESS: DISASSEMBLED_INSTRUCTION`. Each `>` in the output corresponds 
 | `jp [PAD] BUTTON...` | Press and hold gamepad buttons (PAD is 1 or 2, default 1) |
 | `jr [PAD] [BUTTON...]` | Release gamepad buttons (all buttons on the pad if none given) |
 | `j` | Show buttons currently held on both pads |
+| `ww [START [END]]` | Print every 68K write to work RAM START-END (hex, default one word) while the game runs; no argument lists the watches |
+| `wc` | Clear all write watches |
 | `ta FILE [ZFILE]` | Write the start address of every 68K (and Z80) instruction translated so far, one hex address per line |
 | `yc [N]` | Print YM-2612 channel info (all, or channel N: 1-6) |
 | `yt` | Print YM-2612 timer info |

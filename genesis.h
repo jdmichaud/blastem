@@ -60,6 +60,7 @@ struct genesis_context {
 	uint32_t        last_frame;
 	uint32_t        debug_frame_target; //VDP frame number at which to enter the debugger
 	struct trace_context *trace;
+	uint64_t        cycle_base; //master clock cycles deducted from the cycle counters since power-on
 	uint32_t        last_flush_cycle;
 	uint32_t        soft_flush_cycles;
 	uint32_t        tmss_write_offset;

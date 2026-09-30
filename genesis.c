@@ -466,6 +466,7 @@ m68k_context * sync_components(m68k_context * context, uint32_t address)
 				jcart_adjust_cycles(gen, deduction);
 			}
 			context->current_cycle -= deduction;
+			gen->cycle_base += deduction;
 			if (gen->trace) {
 				trace_adjust_cycles(gen->trace, deduction);
 			}

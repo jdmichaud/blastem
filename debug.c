@@ -722,6 +722,89 @@ static void dump_translated(genesis_context *gen, char *param)
 #endif
 }
 
+#define MAX_WRITE_WATCHES 16
+static uint32_t watch_start[MAX_WRITE_WATCHES], watch_end[MAX_WRITE_WATCHES];
+static uint32_t num_watches;
+
+//work RAM addresses are reported at their $FF0000 alias
+static uint32_t watch_ram_address(uint32_t address)
+{
+	return 0xFF0000 | (address & 0xFFFF);
+}
+
+static void write_watch_hit(m68k_context *context, uint32_t address)
+{
+	address = watch_ram_address(address);
+	uint32_t i;
+	for (i = 0; i < num_watches; i++)
+	{
+		if (address >= watch_start[i] && address <= watch_end[i]) {
+			break;
+		}
+	}
+	if (i == num_watches) {
+		return;
+	}
+	genesis_context *gen = context->system;
+	uint32_t pc = get_instruction_start(context->options, (context->last_prefetch_address - 2) & 0xFFFFFF);
+	uint16_t word = gen->work_ram[(address & 0xFFFF) >> 1];
+	//the value has already been stored: an odd address is a byte write, an even one a byte or word write
+	if (address & 1) {
+		printf("Write $%06X.b = $%02X", address, word & 0xFF);
+	} else {
+		printf("Write $%06X.w = $%04X", address, word);
+	}
+	printf(" pc=%06X vblank=%d cycle=%llu\n", pc, (int)gen->vdp->vint_count - 1, (unsigned long long)(gen->cycle_base + context->current_cycle));
+}
+
+uint8_t add_write_watch(m68k_context *context, uint32_t start, uint32_t end)
+{
+	//work RAM and its mirrors are $E00000-$FFFFFF
+	if (start < 0xE00000 || end > 0xFFFFFF || end < start || end - start > 0xFFFF) {
+		return 0;
+	}
+	start = watch_ram_address(start);
+	end = watch_ram_address(end);
+	if (num_watches == MAX_WRITE_WATCHES || end < start) {
+		return 0;
+	}
+	if (!m68k_trap_ram_writes(context, start, end)) {
+		return 0;
+	}
+	watch_start[num_watches] = start;
+	watch_end[num_watches++] = end;
+	context->write_watch = write_watch_hit;
+	return 1;
+}
+
+static void write_watch_command(m68k_context *context, char *input_buf)
+{
+	if (input_buf[1] == 'c') {
+		num_watches = 0;
+		puts("Write watches cleared");
+		return;
+	}
+	char *param = find_param(input_buf);
+	if (!param) {
+		for (uint32_t i = 0; i < num_watches; i++)
+		{
+			printf("Write watch %d: $%06X-$%06X\n", i, watch_start[i], watch_end[i]);
+		}
+		if (!num_watches) {
+			puts("No write watches");
+		}
+		return;
+	}
+	char *end_param = find_param(param);
+	uint32_t start = strtoul(param[0] == '$' ? param + 1 : param, NULL, 16);
+	uint32_t end = end_param ? strtoul(end_param[0] == '$' ? end_param + 1 : end_param, NULL, 16) : start + 1;
+	if (!add_write_watch(context, start, end)) {
+		fprintf(stderr, "Could not watch $%X-$%X: only work RAM ($E00000-$FFFFFF) can be watched, up to %d ranges\n", start, end, MAX_WRITE_WATCHES);
+		return;
+	}
+	printf("Write watch %d set on $%06X-$%06X\n", num_watches - 1, watch_start[num_watches - 1], watch_end[num_watches - 1]);
+}
+
 static const char *button_names[] = {
 	[DPAD_UP] = "up",
 	[DPAD_DOWN] = "down",
@@ -1140,6 +1223,13 @@ int run_debugger_command(m68k_context *context, uint32_t address, char *input_bu
 		case 'j':
 			gamepad_command(system, input_buf);
 			break;
+		case 'w':
+			if (input_buf[1] == 'w' || input_buf[1] == 'c') {
+				write_watch_command(context, input_buf);
+				break;
+			}
+			fprintf(stderr, "Unrecognized debugger command %s\nUse '?' for help.\n", input_buf);
+			break;
 		case 't':
 			if (input_buf[1] == 'a') {
 				dump_translated(system, find_param(input_buf));
@@ -1243,6 +1333,9 @@ void print_m68k_help()
 	printf("    jp [PAD] BUTTON...   - Press and hold gamepad buttons (PAD 1 or 2)\n");
 	printf("    jr [PAD] [BUTTON...] - Release gamepad buttons (all if none given)\n");
 	printf("    j                    - Show held gamepad buttons\n");
+	printf("    ww [START [END]]     - Print every write to work RAM START-END (hex,\n");
+	printf("                           default one word) while running, or list watches\n");
+	printf("    wc                   - Clear all write watches\n");
 	printf("    ta FILE [ZFILE]      - Write the start address of every translated 68K\n");
 	printf("                           (and Z80) instruction, one hex address per line\n");
 	printf("    yc [CHANNEL NUM]     - Print YM-2612 channel info\n");

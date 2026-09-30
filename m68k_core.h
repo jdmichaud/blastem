@@ -97,6 +97,8 @@ struct m68k_context {
 	uint8_t         int_pending;
 	uint8_t         trace_pending;
 	uint8_t         should_return;
+	//called after a write to a RAM page trapped with m68k_trap_ram_writes
+	void            (*write_watch)(m68k_context *context, uint32_t address);
 	uint8_t         ram_code_flags[];
 };
 
@@ -115,6 +117,7 @@ void remove_breakpoint(m68k_context * context, uint32_t address);
 m68k_context * m68k_handle_code_write(uint32_t address, m68k_context * context);
 uint32_t get_instruction_start(m68k_options *opts, uint32_t address);
 uint32_t m68k_dump_translated(m68k_options *opts, FILE *f);
+uint32_t m68k_trap_ram_writes(m68k_context *context, uint32_t start, uint32_t end);
 uint16_t m68k_get_ir(m68k_context *context);
 void m68k_print_regs(m68k_context * context);
 void m68k_invalidate_code_range(m68k_context *context, uint32_t start, uint32_t end);

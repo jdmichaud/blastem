@@ -670,6 +670,27 @@ code_ptr get_native_from_context(m68k_context * context, uint32_t address)
 	return get_native_address(context->options, address);
 }
 
+//Marks the RAM pages covering start-end as containing code, so the translated code calls
+//handle_code_write after every write to them. Returns the number of pages marked, 0 if none is RAM
+uint32_t m68k_trap_ram_writes(m68k_context *context, uint32_t start, uint32_t end)
+{
+	m68k_options *opts = context->options;
+	uint32_t page_size = 1 << opts->gen.ram_flags_shift;
+	uint32_t pages = 0;
+	for (uint32_t address = start & ~(page_size - 1); address <= end; address += page_size)
+	{
+		uint32_t meta_off;
+		memmap_chunk const *chunk = find_map_chunk(address, &opts->gen, MMAP_CODE, &meta_off);
+		if (!chunk || !(chunk->flags & MMAP_CODE)) {
+			continue;
+		}
+		uint32_t final_off = ((address - chunk->start) & chunk->mask) + meta_off;
+		context->ram_code_flags[final_off >> (opts->gen.ram_flags_shift + 3)] |= 1 << ((final_off >> opts->gen.ram_flags_shift) & 7);
+		pages++;
+	}
+	return pages;
+}
+
 uint32_t m68k_dump_translated(m68k_options *opts, FILE *f)
 {
 	return dump_translated_addresses(opts->gen.native_code_map, NATIVE_MAP_CHUNKS, NATIVE_CHUNK_SIZE, f, 6);
