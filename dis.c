@@ -154,6 +154,10 @@ int main(int argc, char ** argv)
 	tern_node * named_labels = NULL;
 
 	uint32_t address_off = 0, address_end;
+	if (argc < 2 || argv[1][0] == '-') {
+		fputs("Usage: dis ROMFILE [-l] [-a] [-o] [-s LOADADDR] [-f ADDRFILE] [-v] [-r] [ADDRESS[=LABEL]...]\n", stderr);
+		exit(1);
+	}
 	for(uint8_t opt = 2; opt < argc; ++opt) {
 		if (argv[opt][0] == '-') {
 			FILE * address_log;
@@ -219,6 +223,10 @@ int main(int argc, char ** argv)
 		}
 	}
 	FILE * f = fopen(argv[1], "rb");
+	if (!f) {
+		fprintf(stderr, "Failed to open %s for reading\n", argv[1]);
+		exit(1);
+	}
 	fseek(f, 0, SEEK_END);
 	filesize = ftell(f);
 	fseek(f, 0, SEEK_SET);

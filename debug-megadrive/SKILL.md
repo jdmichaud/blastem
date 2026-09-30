@@ -297,48 +297,45 @@ Z80 printable registers: `a`, `b`, `c`, `d`, `e`, `h`, `l`, `af`, `bc`, `de`, `h
 
 ## Offline Disassembly
 
-Use the bundled 68K disassembler for static analysis:
+Use the bundled 68K disassembler for static analysis. **The ROM file comes first**, then options and extra entry points:
 
 ```bash
-${CLAUDE_SKILL_DIR}/dis [options] <rom-file>
+${CLAUDE_SKILL_DIR}/dis <rom-file> [options] [ADDRESS[=LABEL]...]
 ```
+
+It is a recursive-descent disassembler. It starts from the reset vector and the level 2, 4 and 6 interrupt vectors, follows branches, jumps and calls, and prints every instruction it reached in address order, one `ADDRESS: instruction` line each (hex addresses). Code only reached through jump tables or computed jumps is not found unless you give its address.
 
 ### Options
 
-| Flag | Description |
-|------|-------------|
-| `-a` | Show addresses alongside disassembly |
-| `-l` | Produce assembly output with labels (can be re-assembled) |
-| `-o` | Only disassemble addresses specified with `-s` (don't continue past them) |
-| `-s OFFSET` | Start disassembling at hex address OFFSET (can specify multiple times) |
-| `-r` | Start from the reset vector (address at `$000004`) instead of `$000000` |
-| `-f FILE` | Read start addresses from FILE (one hex address per line; `name $ADDR` assigns a label) |
-| `-v` | Treat input as VOS program module format |
+| Argument | Description |
+|----------|-------------|
+| `ADDRESS` | Extra entry point, in hex (no prefix), e.g. `73206` |
+| `ADDRESS=LABEL` | Extra entry point with a label name (used with `-l`) |
+| `-f FILE` | Read extra entry points from FILE: one hex address per line, optionally `ADDRESS=LABEL` |
+| `-o` | Only start from the addresses given on the command line or with `-f`, not from the vectors |
+| `-l` | Assembly output with labels (`ADR_xxxx`, or your label names) instead of `ADDRESS:` prefixes |
+| `-a` | With `-l`, add the address as a comment after each instruction |
+| `-s LOADADDR` | Address the file is loaded at (default 0). **Not** a start address; leave it alone for cartridge ROMs. Decimal, or hex with a `0x` prefix |
+| `-v` | Treat the input as a VOS program module (`-r` only applies to those) |
 
 ### Examples
 
 ```bash
-# Disassemble from beginning, show addresses
-${CLAUDE_SKILL_DIR}/dis -a <rom> | head -200
+# Everything reachable from the vectors
+${CLAUDE_SKILL_DIR}/dis <rom> | head -100
 
-# Disassemble starting from a specific address
-${CLAUDE_SKILL_DIR}/dis -a -s 200 <rom> | head -100
+# Only one routine and what it calls
+${CLAUDE_SKILL_DIR}/dis <rom> -o 73206
 
-# Start from the reset vector (entry point)
-${CLAUDE_SKILL_DIR}/dis -a -r <rom> | head -100
+# The vectors plus extra entry points found at runtime (e.g. with ta)
+${CLAUDE_SKILL_DIR}/dis <rom> 19D16 73206
 
-# Only disassemble specific routines (don't follow past them)
-${CLAUDE_SKILL_DIR}/dis -a -o -s 200 -s 400 <rom>
-
-# Produce re-assemblable output with labels
-${CLAUDE_SKILL_DIR}/dis -l -r <rom> > disassembly.s68
-
-# Use an address file with named labels
-echo -e "main_loop 200\nvblank_handler 78" > addrs.txt
-${CLAUDE_SKILL_DIR}/dis -a -f addrs.txt <rom>
+# Named entry points from a file, as labelled assembly with address comments
+printf '19D16=vblank_handler\n73206=ym_write\n' > addrs.txt
+${CLAUDE_SKILL_DIR}/dis <rom> -l -a -f addrs.txt > disassembly.s68
 ```
 
-Pipe through `head` or `grep` to focus on regions of interest.
+`ta` output (see below) can be passed with `-f` to disassemble every instruction the game actually reached. Pipe through `head` or `grep` to focus on regions of interest. With a wrong argument order `dis` prints its usage and exits with status 1.
 
 ## Workflow
 
