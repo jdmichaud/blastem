@@ -101,8 +101,9 @@ void psg_run(psg_context * context, uint32_t cycles)
 					context->noise_out = context->lsfr & 1;
 					context->lsfr = (context->lsfr >> 1) | (context->lsfr << 15);
 					if (context->noise_type) {
-						//white noise
-						if (context->lsfr & 0x40) {
+						//white noise: bit 15 gets bit 0 XOR bit 3 of the register before the shift
+						//(Sega's integrated PSG, feedback pattern $0009), bit 3 is now bit 2
+						if (context->lsfr & 0x4) {
 							context->lsfr ^= 0x8000;
 						}
 					}
