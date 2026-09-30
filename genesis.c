@@ -442,6 +442,10 @@ m68k_context * sync_components(m68k_context * context, uint32_t address)
 	if (v_context->frame != gen->last_frame) {
 		//printf("reached frame end %d | MCLK Cycles: %d, Target: %d, VDP cycles: %d, vcounter: %d, hslot: %d\n", gen->last_frame, mclks, gen->frame_end, v_context->cycles, v_context->vcounter, v_context->hslot);
 		gen->last_frame = v_context->frame;
+		if (gen->debug_frame_break == 1 && (int32_t)(v_context->frame - gen->debug_frame_target) >= 0) {
+			gen->debug_frame_break = 2;
+			gen->header.enter_debugger = 1;
+		}
 		event_flush(mclks);
 		gen->last_flush_cycle = mclks;
 

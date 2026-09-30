@@ -85,6 +85,7 @@ This is `ADDRESS: DISASSEMBLED_INSTRUCTION`. Each `>` in the output corresponds 
 | `sr` | Soft reset the emulated system |
 | `vs` | Print VDP sprite table |
 | `vr` | Print VDP register info |
+| `fr [N]` | Run N frames (default 1), then break |
 | `yc [N]` | Print YM-2612 channel info (all, or channel N: 1-6) |
 | `yt` | Print YM-2612 timer info |
 | `zb ADDRESS` | Set a Z80 breakpoint |

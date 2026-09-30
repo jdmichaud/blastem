@@ -895,6 +895,20 @@ int run_debugger_command(m68k_context *context, uint32_t address, char *input_bu
 			}
 			break;
 		}
+		case 'f':
+			if (input_buf[1] == 'r') {
+				param = find_param(input_buf);
+				int frames = param ? atoi(param) : 1;
+				if (frames < 1) {
+					fputs("fr frame count must be at least 1\n", stderr);
+					break;
+				}
+				system->debug_frame_target = system->vdp->frame + frames;
+				system->debug_frame_break = 1;
+				return 0;
+			}
+			fprintf(stderr, "Unrecognized debugger command %s\nUse '?' for help.\n", input_buf);
+			break;
 		case 'y': {
 			genesis_context * gen = context->system;
 			//YM-2612 debug commands
@@ -983,6 +997,7 @@ void print_m68k_help()
 	printf("                           a breakpoint is hit\n");
 	printf("    vs                   - Print VDP sprite list\n");
 	printf("    vr                   - Print VDP register info\n");
+	printf("    fr [N]               - Run N frames (default 1), then break\n");
 	printf("    yc [CHANNEL NUM]     - Print YM-2612 channel info\n");
 	printf("    yt                   - Print YM-2612 timer info\n");
 	printf("    zb ADDRESS           - Set a Z80 breakpoint\n");
@@ -1016,6 +1031,11 @@ void debugger(m68k_context * context, uint32_t address)
 	sync_components(context, 0);
 	genesis_context *gen = context->system;
 	vdp_force_update_framebuffer(gen->vdp);
+	if (gen->debug_frame_break == 2) {
+		printf("Frame %d reached\n", gen->vdp->frame);
+	}
+	//any stop cancels a pending fr
+	gen->debug_frame_break = 0;
 	//probably not necessary, but let's play it safe
 	address &= 0xFFFFFF;
 	if (address == branch_t) {

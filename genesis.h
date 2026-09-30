@@ -58,6 +58,7 @@ struct genesis_context {
 	uint32_t        int_latency_prev2;
 	uint32_t        reset_cycle;
 	uint32_t        last_frame;
+	uint32_t        debug_frame_target; //VDP frame number at which to enter the debugger
 	uint32_t        last_flush_cycle;
 	uint32_t        soft_flush_cycles;
 	uint32_t        tmss_write_offset;
@@ -73,6 +74,7 @@ struct genesis_context {
 	uint8_t         reset_requested;
 	uint8_t         tmss;
 	uint8_t         vdp_unlocked;
+	uint8_t         debug_frame_break; //1 = waiting for debug_frame_target, 2 = target reached
 	eeprom_state    eeprom;
 	nor_state       nor;
 };
