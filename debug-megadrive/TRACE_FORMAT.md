@@ -24,7 +24,7 @@ blastdbg --trace FILE [--frames FIRST-LAST] [--input FILE] [--record LIST]
 | `--screenshot-every N` | Only every Nth recorded VBlank, counted from FIRST (default 1) |
 | `--translated FILE` | When the trace ends, write the start address of every translated 68K instruction (see `ta` in SKILL.md) |
 | `--translated-z80 FILE` | Same for the Z80 |
-| `--watch START[-END]` | Print every 68K write to this work RAM range on stdout, as `Write $FFxxxx.w = $vvvv pc=PPPPPP vblank=N cycle=C` (see `ww` in SKILL.md). Repeatable, up to 16 ranges. Does not change the trace |
+| `--watch START[-END]` | Print every 68K write to this work RAM range on stdout, as `Write $FFxxxx.b = $vv ...` or `Write $FFxxxx.w = $vvvv pc=PPPPPP vblank=N cycle=C` (see `ww` in SKILL.md). Repeatable, up to 16 ranges. Does not change the trace |
 | `-p 3\|6` | Pad type for both ports (default 3-button) |
 | `-r J\|U\|E` | Force the region |
 

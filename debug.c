@@ -732,7 +732,7 @@ static uint32_t watch_ram_address(uint32_t address)
 	return 0xFF0000 | (address & 0xFFFF);
 }
 
-static void write_watch_hit(m68k_context *context, uint32_t address)
+static void write_watch_hit(m68k_context *context, uint32_t address, uint32_t size)
 {
 	address = watch_ram_address(address);
 	uint32_t i;
@@ -747,10 +747,10 @@ static void write_watch_hit(m68k_context *context, uint32_t address)
 	}
 	genesis_context *gen = context->system;
 	uint32_t pc = get_instruction_start(context->options, (context->last_prefetch_address - 2) & 0xFFFFFF);
+	//the value has already been stored, work RAM is kept as native endian words
 	uint16_t word = gen->work_ram[(address & 0xFFFF) >> 1];
-	//the value has already been stored: an odd address is a byte write, an even one a byte or word write
-	if (address & 1) {
-		printf("Write $%06X.b = $%02X", address, word & 0xFF);
+	if (size == 1) {
+		printf("Write $%06X.b = $%02X", address, (address & 1) ? word & 0xFF : word >> 8);
 	} else {
 		printf("Write $%06X.w = $%04X", address, word);
 	}

@@ -2494,9 +2494,6 @@ void nop_fill_or_jmp_next(code_info *code, code_ptr old_end, code_ptr next_inst)
 m68k_context * m68k_handle_code_write(uint32_t address, m68k_context * context)
 {
 	m68k_options * options = context->options;
-	if (context->write_watch) {
-		context->write_watch(context, address);
-	}
 	uint32_t inst_start = get_instruction_start(options, address);
 	while (inst_start && (address - inst_start) < M68K_MAX_INST_SIZE) {
 		code_ptr dst = get_native_address(context->options, inst_start);
@@ -2504,6 +2501,15 @@ m68k_context * m68k_handle_code_write(uint32_t address, m68k_context * context)
 		inst_start = get_instruction_start(options, inst_start - 2);
 	}
 	return context;
+}
+
+//called by translated code after a write of size bytes to a RAM page that may contain code or be watched
+static m68k_context * m68k_handle_ram_write(uint32_t address, m68k_context * context, uint32_t size)
+{
+	if (context->write_watch) {
+		context->write_watch(context, address, size);
+	}
+	return m68k_handle_code_write(address, context);
 }
 
 void m68k_invalidate_code_range(m68k_context *context, uint32_t start, uint32_t end)
@@ -2724,7 +2730,7 @@ void init_m68k_opts(m68k_options * opts, memmap_chunk * memmap, uint32_t num_chu
 	*skip_sync = code->cur - (skip_sync+1);
 	retn(code);
 
-	opts->gen.handle_code_write = (code_ptr)m68k_handle_code_write;
+	opts->gen.handle_code_write = (code_ptr)m68k_handle_ram_write;
 	
 	check_alloc_code(code, 256);
 	opts->gen.handle_align_error_write = code->cur;

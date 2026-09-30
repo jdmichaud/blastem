@@ -98,7 +98,7 @@ struct m68k_context {
 	uint8_t         trace_pending;
 	uint8_t         should_return;
 	//called after a write to a RAM page trapped with m68k_trap_ram_writes
-	void            (*write_watch)(m68k_context *context, uint32_t address);
+	void            (*write_watch)(m68k_context *context, uint32_t address, uint32_t size);
 	uint8_t         ram_code_flags[];
 };
 

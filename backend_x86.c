@@ -272,8 +272,14 @@ code_ptr gen_mem_fun(cpu_options * opts, memmap_chunk const * memmap, uint32_t n
 				if (memmap[chunk].mask != opts->address_mask) {
 					or_ir(code, memmap[chunk].start, opts->scratch2, opts->address_size);
 				}
+				if (size == SZ_B && (opts->byte_swap || memmap[chunk].flags & MMAP_BYTESWAP)) {
+					//undo the byte swap applied to the address above so the handler gets the real address
+					xor_ir(code, 1, opts->scratch2, opts->address_size);
+				}
+				//the write size in bytes is passed as a third argument, handlers that don't need it ignore it
+				mov_ir(code, size == SZ_B ? 1 : 2, opts->scratch1, SZ_D);
 				call(code, opts->save_context);
-				call_args(code, opts->handle_code_write, 2, opts->scratch2, opts->context_reg);
+				call_args(code, opts->handle_code_write, 3, opts->scratch2, opts->context_reg, opts->scratch1);
 				mov_rr(code, RAX, opts->context_reg, SZ_PTR);
 				jmp(code, opts->load_context);
 				*not_code = code->cur - (not_code+1);

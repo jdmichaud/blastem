@@ -142,7 +142,7 @@ timeout 60 bash -c 'printf "ww FFFB06\nfr 200\nq\n" | ${CLAUDE_SKILL_DIR}/blastd
 Write $FFFB06.w = $003F pc=01A074 vblank=158 cycle=142370200
 ```
 
-- The value is read back after the write. An odd address is a byte write (`.b`). An even address shows the whole word (`.w`), which may have been written as a word or as its high byte.
+- The size is the size of the write: `.b` for a byte write at its own address, `.w` for a word write. The value is the one written.
 - A long write shows as two word writes (high word first).
 - `pc` is the exact start of the writing instruction, `vblank` the most recent VBlank (-1 before the first), `cycle` the master clock cycle since power-on (the same clock as trace files).
 - Only 68K writes are seen, not DMA or Z80 bank-window writes. Watching does not change emulation or timing; each write in a watched 2 KB page costs a call into C, so large ranges are slower.
