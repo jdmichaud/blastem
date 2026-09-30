@@ -718,6 +718,7 @@ int run_debugger_command(m68k_context *context, uint32_t address, char *input_bu
 					break;
 				}
 				new_bp = *this_bp;
+				remove_breakpoint(context, new_bp->address);
 				*this_bp = (*this_bp)->next;
 				if (new_bp->commands) {
 					free(new_bp->commands);
