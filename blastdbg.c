@@ -26,6 +26,7 @@
 #include "hash.h"
 #include "zip.h"
 #include "saves.h"
+#include "trace.h"
 
 #ifndef DISABLE_ZLIB
 #include "zlib/zlib.h"
@@ -304,7 +305,16 @@ static void print_usage(void)
 		"  -m MACHINE  Force machine type (sms, gen)\n"
 		"  -n          Disable Z80\n"
 		"  -p (3|6)    Gamepad type for both pads (default 3-button)\n"
-		"  -h          Print this help\n",
+		"  -h          Print this help\n"
+		"Trace mode (runs from power-on without the debugger, then exits):\n"
+		"  --trace FILE             Write one record per VBlank to FILE\n"
+		"  --frames FIRST-LAST      VBlanks to record (default 0-599)\n"
+		"  --input FILE             Pad input, one line per VBlank: PAD1 PAD2 hex masks\n"
+		"  --record LIST            Extra state per record: vram,cram,vsram,regs,z80 or all\n"
+		"  --screenshots DIR        Save a PNG of the frame before each recorded VBlank\n"
+		"  --screenshot-every N     Only every Nth recorded VBlank (default 1)\n"
+		"  --translated FILE        At the end, write every translated 68K instruction address\n"
+		"  --translated-z80 FILE    Same for the Z80\n",
 		BLASTEM_VERSION
 	);
 }
@@ -321,9 +331,62 @@ int main(int argc, char **argv)
 	uint32_t opts = 0;
 	system_media cart = {0};
 	uint8_t pad_type = 3;
+	trace_options trace = {
+		.last_frame = 599,
+		.screenshot_every = 1
+	};
 
 	for (int i = 1; i < argc; i++) {
-		if (argv[i][0] == '-') {
+		if (argv[i][0] == '-' && argv[i][1] == '-') {
+			char *opt = argv[i] + 2;
+			if (i + 1 >= argc) {
+				fatal_error("--%s requires a parameter\n", opt);
+			}
+			char *param = argv[++i];
+			if (!strcmp(opt, "trace")) {
+				trace.out_path = param;
+			} else if (!strcmp(opt, "input")) {
+				trace.input_path = param;
+			} else if (!strcmp(opt, "frames")) {
+				if (sscanf(param, "%u-%u", &trace.first_frame, &trace.last_frame) != 2 || trace.last_frame < trace.first_frame) {
+					fatal_error("--frames expects FIRST-LAST, got %s\n", param);
+				}
+			} else if (!strcmp(opt, "record")) {
+				char *copy = strdup(param);
+				for (char *tok = strtok(copy, ","); tok; tok = strtok(NULL, ","))
+				{
+					if (!strcmp(tok, "vram")) {
+						trace.record_flags |= TRACE_REC_VRAM;
+					} else if (!strcmp(tok, "cram")) {
+						trace.record_flags |= TRACE_REC_CRAM;
+					} else if (!strcmp(tok, "vsram")) {
+						trace.record_flags |= TRACE_REC_VSRAM;
+					} else if (!strcmp(tok, "regs")) {
+						trace.record_flags |= TRACE_REC_VDPREGS;
+					} else if (!strcmp(tok, "z80")) {
+						trace.record_flags |= TRACE_REC_Z80RAM;
+					} else if (!strcmp(tok, "all")) {
+						trace.record_flags |= TRACE_REC_ALL;
+					} else {
+						fatal_error("Unknown --record section %s\n", tok);
+					}
+				}
+				free(copy);
+			} else if (!strcmp(opt, "translated")) {
+				trace.translated_path = param;
+			} else if (!strcmp(opt, "translated-z80")) {
+				trace.translated_z80_path = param;
+			} else if (!strcmp(opt, "screenshots")) {
+				trace.screenshot_dir = param;
+			} else if (!strcmp(opt, "screenshot-every")) {
+				trace.screenshot_every = atoi(param);
+				if (!trace.screenshot_every) {
+					fatal_error("--screenshot-every must be at least 1\n");
+				}
+			} else {
+				fatal_error("Unrecognized option --%s\n", opt);
+			}
+		} else if (argv[i][0] == '-') {
 			switch (argv[i][1]) {
 			case 'r':
 				i++;
@@ -388,6 +451,8 @@ int main(int argc, char **argv)
 		fatal_error("Failed to detect system type for %s\n", romfname);
 	}
 
+	//hash the image before system setup, which may byte swap it in place
+	sha256(cart.buffer, cart.size, trace.rom_sha256);
 	config = tern_insert_path(config, "io\0devices\0" "1\0", (tern_val){.ptrval = pad_type == 3 ? "gamepad3.1" : "gamepad6.1"}, TVAL_PTR);
 	config = tern_insert_path(config, "io\0devices\0" "2\0", (tern_val){.ptrval = pad_type == 3 ? "gamepad3.2" : "gamepad6.2"}, TVAL_PTR);
 	current_system = alloc_config_system(stype, &cart, opts, force_region);
@@ -397,6 +462,18 @@ int main(int argc, char **argv)
 	game_system = current_system;
 
 	setup_saves(&cart, current_system);
+
+	if (trace.out_path) {
+		if (current_system->type != SYSTEM_GENESIS) {
+			fatal_error("Trace mode only supports Mega Drive / Genesis ROMs\n");
+		}
+		trace.pad_type = pad_type;
+		genesis_context *gen = (genesis_context *)current_system;
+		gen->trace = trace_start(gen, &trace);
+		force_no_terminal();
+		current_system->start_context(current_system, NULL);
+		return 0;
+	}
 
 	current_system->debugger_type = DEBUGGER_NATIVE;
 	current_system->enter_debugger = 1;

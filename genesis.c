@@ -4,6 +4,7 @@
  BlastEm is free software distributed under the terms of the GNU General Public License version 3 or greater. See COPYING for full license text.
 */
 #include "genesis.h"
+#include "trace.h"
 #include "blastem.h"
 #include "nor.h"
 #include <stdlib.h>
@@ -465,6 +466,9 @@ m68k_context * sync_components(m68k_context * context, uint32_t address)
 				jcart_adjust_cycles(gen, deduction);
 			}
 			context->current_cycle -= deduction;
+			if (gen->trace) {
+				trace_adjust_cycles(gen->trace, deduction);
+			}
 			z80_adjust_cycles(z_context, deduction);
 			ym_adjust_cycles(gen->ym, deduction);
 			if (gen->ym->vgm) {
@@ -484,6 +488,9 @@ m68k_context * sync_components(m68k_context * context, uint32_t address)
 	gen->frame_end = vdp_cycles_to_frame_end(v_context);
 	context->sync_cycle = gen->frame_end;
 	//printf("Set sync cycle to: %d @ %d, vcounter: %d, hslot: %d\n", context->sync_cycle, context->current_cycle, v_context->vcounter, v_context->hslot);
+	if (gen->trace) {
+		trace_sync(gen);
+	}
 	if (context->int_ack) {
 		//printf("acknowledging %d @ %d:%d, vcounter: %d, hslot: %d\n", context->int_ack, context->current_cycle, v_context->cycles, v_context->vcounter, v_context->hslot);
 		vdp_int_ack(v_context);
@@ -552,6 +559,24 @@ m68k_context * sync_components(m68k_context * context, uint32_t address)
 	last_sync_cycle = context->current_cycle;
 #endif
 	return context;
+}
+
+static void trace_68k_write(m68k_context *context, uint8_t kind, uint32_t address, uint8_t value)
+{
+	genesis_context *gen = context->system;
+	if (gen->trace) {
+		//last_prefetch_address points just past the current instruction for any instruction with a memory operand
+		uint32_t pc = get_instruction_start(context->options, (context->last_prefetch_address - 2) & 0xFFFFFF);
+		trace_log_write(gen->trace, TRACE_SRC_68K, kind, address, value, context->current_cycle, pc, pc != 0);
+	}
+}
+
+static void trace_z80_write(z80_context *context, uint8_t kind, uint32_t address, uint8_t value)
+{
+	genesis_context *gen = context->system;
+	if (gen->trace) {
+		trace_log_write(gen->trace, TRACE_SRC_Z80, kind, address, value, context->Z80_CYCLE, 0, 0);
+	}
 }
 
 static m68k_context * vdp_port_write(uint32_t vdp_port, m68k_context * context, uint16_t value)
@@ -644,6 +669,7 @@ static m68k_context * vdp_port_write(uint32_t vdp_port, m68k_context * context, 
 			gen->bus_busy = 0;
 		}
 	} else if (vdp_port < 0x18) {
+		trace_68k_write(context, TRACE_WRITE_PSG, vdp_port, value);
 		psg_write(gen->psg, value);
 	} else {
 		vdp_test_port_write(gen->vdp, value);
@@ -689,6 +715,7 @@ static void * z80_vdp_port_write(uint32_t vdp_port, void * vcontext, uint8_t val
 		}
 	} else if (vdp_port < 0x18) {
 		sync_sound(gen, context->Z80_CYCLE);
+		trace_z80_write(context, TRACE_WRITE_PSG, vdp_port, value);
 		psg_write(gen->psg, value);
 	} else {
 		vdp_test_port_write(gen->vdp, value);
@@ -815,12 +842,14 @@ static m68k_context * io_write(uint32_t location, m68k_context * context, uint8_
 		if (!z80_enabled || z80_get_busack(gen->z80, context->current_cycle)) {
 			location &= 0x7FFF;
 			if (location < 0x4000) {
+				trace_68k_write(context, TRACE_WRITE_Z80_RAM, location & 0x1FFF, value);
 				gen->zram[location & 0x1FFF] = value;
 #ifndef NO_Z80
 				z80_handle_code_write(location & 0x1FFF, gen->z80);
 #endif
 			} else if (location < 0x6000) {
 				sync_sound(gen, context->current_cycle);
+				trace_68k_write(context, TRACE_WRITE_YM, location & 3, value);
 				if (location & 1) {
 					ym_data_write(gen->ym, value);
 				} else if(location & 2) {
@@ -829,6 +858,7 @@ static m68k_context * io_write(uint32_t location, m68k_context * context, uint8_
 					ym_address_write_part1(gen->ym, value);
 				}
 			} else if (location == 0x6000) {
+				trace_68k_write(context, TRACE_WRITE_Z80_BANK, location, value);
 				gen->z80_bank_reg = (gen->z80_bank_reg >> 1 | value << 8) & 0x1FF;
 				if (gen->z80_bank_reg < 0x80) {
 					gen->z80->mem_pointers[1] = (gen->z80_bank_reg << 15) + ((char *)gen->z80->mem_pointers[2]);
@@ -889,6 +919,7 @@ static m68k_context * io_write(uint32_t location, m68k_context * context, uint8_
 		} else {
 			uint32_t masked = location & 0xFFF00;
 			if (masked == 0x11100) {
+				trace_68k_write(context, TRACE_WRITE_Z80_BUSREQ, location | 0xA00000, value);
 				if (value & 1) {
 					dputs("bus requesting Z80");
 					if (z80_enabled) {
@@ -915,6 +946,7 @@ static m68k_context * io_write(uint32_t location, m68k_context * context, uint8_
 				}
 			} else if (masked == 0x11200) {
 				sync_z80(gen->z80, context->current_cycle);
+				trace_68k_write(context, TRACE_WRITE_Z80_RESET, location | 0xA00000, value);
 				if (value & 1) {
 					if (z80_enabled) {
 						z80_clear_reset(gen->z80, context->current_cycle);
@@ -1090,6 +1122,7 @@ static void * z80_write_ym(uint32_t location, void * vcontext, uint8_t value)
 	z80_context * context = vcontext;
 	genesis_context * gen = context->system;
 	sync_sound(gen, context->Z80_CYCLE);
+	trace_z80_write(context, TRACE_WRITE_YM, location & 3, value);
 	if (location & 1) {
 		ym_data_write(gen->ym, value);
 	} else if (location & 2) {
@@ -1171,6 +1204,7 @@ static void *z80_write_bank_reg(uint32_t location, void * vcontext, uint8_t valu
 	z80_context * context = vcontext;
 	genesis_context *gen = context->system;
 
+	trace_z80_write(context, TRACE_WRITE_Z80_BANK, location & 0xFFFF, value);
 	gen->z80_bank_reg = (gen->z80_bank_reg >> 1 | value << 8) & 0x1FF;
 	update_z80_bank_pointer(context->system);
 

@@ -26,7 +26,7 @@ ${CLAUDE_SKILL_DIR}/blastdbg <rom-file>
 
 It starts the debugger immediately at the ROM entry point, prints the first instruction, and waits for commands on stdin.
 
-Options: `-p 3|6` pad type (default 3-button), `-r J|U|E` force the region, `-n` disable the Z80, `-h` help.
+Options: `-p 3|6` pad type (default 3-button), `-r J|U|E` force the region, `-n` disable the Z80, `-h` help. The `--trace` options below run it without the debugger.
 
 ## Sending commands non-interactively
 
@@ -111,6 +111,25 @@ Every run starts from power-on, so to reach a given point in the game, replay th
 | `PREFIX.regs` | 24 bytes | VDP registers 0-23 (decoded with `vr`) |
 
 Use `vr` to find where plane A/B, the window, the sprite table and the horizontal scroll table live in VRAM, then read those regions from the dump (e.g. with Python) to decode tile maps, sprites or scroll values. VRAM, CRAM and VSRAM are not visible in the 68K address space, so `p` cannot read them.
+
+## Frame traces
+
+For comparing a game run frame by frame, blastdbg can record the machine state once per VBlank from power-on, while replaying a pad input file, without the debugger:
+
+```bash
+${CLAUDE_SKILL_DIR}/blastdbg --trace /tmp/run.trc --frames 0-3599 --input pads.txt --record all --screenshots /tmp/shots --screenshot-every 60 <rom>
+```
+
+Each record holds the VBlank number, whether the level 6 interrupt was taken, the cycle, the 68K registers, the 64 KB work RAM, optionally VRAM/CRAM/VSRAM/VDP registers/Z80 RAM, and every YM2612, PSG and Z80 bus write since the previous record with its cycle and 68K PC. Runs are deterministic: the same ROM, options and input give a byte-identical file.
+
+The input file has one line per VBlank with two hex button masks (pad 1, pad 2), bit 0 = up through bit 11 = mode. The full format, semantics and options are in `${CLAUDE_SKILL_DIR}/TRACE_FORMAT.md`. Read traces with `${CLAUDE_SKILL_DIR}/bdtrace.py`, as a Python module or from the command line:
+
+```bash
+python3 ${CLAUDE_SKILL_DIR}/bdtrace.py info /tmp/run.trc      # header and totals
+python3 ${CLAUDE_SKILL_DIR}/bdtrace.py records /tmp/run.trc   # one line per VBlank
+python3 ${CLAUDE_SKILL_DIR}/bdtrace.py writes /tmp/run.trc 600
+python3 ${CLAUDE_SKILL_DIR}/bdtrace.py diff a.trc b.trc       # first difference
+```
 
 ## Translated code addresses
 

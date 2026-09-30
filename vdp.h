@@ -251,6 +251,9 @@ typedef struct {
 	uint16_t       done_fb_width;
 	uint16_t       done_fb_height;
 	uint16_t       done_fb_top;
+	//number of VBlank starts (VINT pending events) so far and the value it had when done_fb was completed
+	uint32_t       vint_count;
+	uint32_t       done_fb_vint_count;
 	uint8_t        vdpmem[];
 } vdp_context;
 

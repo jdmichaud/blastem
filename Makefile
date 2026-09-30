@@ -219,11 +219,11 @@ else
 RENDEROBJS+= $(LIBZOBJS) png.o
 endif
 
-MAINOBJS=blastem.o system.o genesis.o debug.o gdb_remote.o vdp.o $(RENDEROBJS) io.o romdb.o hash.o menu.o xband.o \
+MAINOBJS=blastem.o system.o genesis.o trace.o debug.o gdb_remote.o vdp.o $(RENDEROBJS) io.o romdb.o hash.o menu.o xband.o \
 	realtec.o i2c.o nor.o sega_mapper.o multi_game.o megawifi.o $(NET) serialize.o $(TERMINAL) $(CONFIGOBJS) gst.o \
 	$(M68KOBJS) $(TRANSOBJS) $(AUDIOOBJS) saves.o zip.o bindings.o jcart.o gen_player.o
 
-LIBOBJS=libblastem.o system.o genesis.o debug.o gdb_remote.o vdp.o io.o romdb.o hash.o xband.o realtec.o \
+LIBOBJS=libblastem.o system.o genesis.o trace.o debug.o gdb_remote.o vdp.o io.o romdb.o hash.o xband.o realtec.o \
 	i2c.o nor.o sega_mapper.o multi_game.o megawifi.o $(NET) serialize.o $(TERMINAL) $(CONFIGOBJS) gst.o \
 	$(M68KOBJS) $(TRANSOBJS) $(AUDIOOBJS) saves.o jcart.o rom.db.o gen_player.o $(LIBZOBJS) ppm.o
 ifndef NOZLIB
@@ -292,7 +292,7 @@ blastem$(EXE) : $(MAINOBJS)
 blastjag$(EXE) : jaguar.o jag_video.o $(RENDEROBJS) serialize.o $(M68KOBJS) $(TRANSOBJS) $(CONFIGOBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-DBGOBJS=blastdbg.o system.o genesis.o debug.o gdb_remote.o vdp.o render_headless.o io.o romdb.o hash.o menu.o xband.o \
+DBGOBJS=blastdbg.o system.o genesis.o trace.o debug.o gdb_remote.o vdp.o render_headless.o io.o romdb.o hash.o menu.o xband.o \
 	realtec.o i2c.o nor.o sega_mapper.o multi_game.o megawifi.o $(NET) serialize.o $(TERMINAL) $(CONFIGOBJS) gst.o \
 	$(M68KOBJS) $(TRANSOBJS) ym2612.o psg.o wave.o vgm.o event_log.o saves.o jcart.o gen_player.o ppm.o controller_info.o
 ifndef NOZLIB

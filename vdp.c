@@ -2146,6 +2146,7 @@ static void advance_output_line(vdp_context *context)
 			context->done_fb_width = context->h40_lines > (context->inactive_start + context->border_top) / 2 ? 320 : 256;
 			context->done_fb_height = context->inactive_start;
 			context->done_fb_top = context->border_top + context->top_offset;
+			context->done_fb_vint_count = context->vint_count;
 			context->fb = context->fb == context->headless_fbs[0] ? context->headless_fbs[1] : context->headless_fbs[0];
 		}
 		vdp_update_per_frame_debug(context);
@@ -3527,6 +3528,7 @@ static void vdp_inactive(vdp_context *context, uint32_t target_cycles, uint8_t i
 		} else if (context->vcounter == vint_line && context->hslot == vint_slot) {
 			context->flags2 |= FLAG2_VINT_PENDING;
 			context->pending_vint_start = context->cycles;
+			context->vint_count++;
 		} else if (context->vcounter == context->inactive_start && context->hslot == 1 && (context->regs[REG_MODE_4] & BIT_INTERLACE)) {
 			context->flags2 ^= FLAG2_EVEN_FIELD;
 		}
