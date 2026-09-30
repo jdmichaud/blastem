@@ -28,6 +28,7 @@
 #include "saves.h"
 #include "trace.h"
 #include "debug.h"
+#include "wave.h"
 
 #ifndef DISABLE_ZLIB
 #include "zlib/zlib.h"
@@ -294,6 +295,78 @@ void apply_updated_config(void) {}
 const system_media *current_media(void) { return NULL; }
 void init_system_with_media(const char *path, system_type force_stype) {}
 
+/* --- Audio capture (trace mode) --- */
+
+//implemented in render_headless.c
+void headless_audio_capture(uint32_t rate);
+uint32_t headless_audio_samples(audio_source *src, int16_t **samples);
+float headless_audio_overall_gain(void);
+
+static uint32_t audio_rate;
+static char *audio_path, *audio_ym_path, *audio_psg_path;
+
+//mixes the sources like render_audio.c does and writes a 16-bit stereo WAV file
+static void write_wav(char *path, audio_source **sources, int num_sources)
+{
+	FILE *f = fopen(path, "wb");
+	if (!f) {
+		fatal_error("Could not open %s for writing\n", path);
+	}
+	wave_init(f, audio_rate, 16, 2);
+	int16_t *samples[2];
+	uint32_t frames = UINT32_MAX;
+	for (int i = 0; i < num_sources; i++)
+	{
+		uint32_t count = headless_audio_samples(sources[i], samples + i);
+		frames = count < frames ? count : frames;
+	}
+	float overall = headless_audio_overall_gain();
+	for (uint32_t frame = 0; frame < frames; frame++)
+	{
+		float mix[2] = {0.0f, 0.0f};
+		for (int i = 0; i < num_sources; i++)
+		{
+			float gain = sources[i]->gain_mult * overall;
+			for (int channel = 0; channel < 2; channel++)
+			{
+				int16_t sample = sources[i]->num_channels == 1 ? samples[i][frame] : samples[i][frame * 2 + channel];
+				mix[channel] += gain * ((float)sample) / 0x7FFF;
+			}
+		}
+		int16_t out[2];
+		for (int channel = 0; channel < 2; channel++)
+		{
+			if (mix[channel] >= 1.0f) {
+				out[channel] = 0x7FFF;
+			} else if (mix[channel] <= -1.0f) {
+				out[channel] = -0x8000;
+			} else {
+				out[channel] = mix[channel] * 0x7FFF;
+			}
+		}
+		//WAV samples are little endian, like the hosts blastdbg runs on
+		fwrite(out, sizeof(int16_t), 2, f);
+	}
+	if (!wave_finalize(f)) {
+		fatal_error("Failed to write %s\n", path);
+	}
+	printf("Wrote %u audio frames (%.3f s at %u Hz) to %s\n", frames, (double)frames / audio_rate, audio_rate, path);
+}
+
+static void write_audio(genesis_context *gen)
+{
+	audio_source *both[] = {gen->ym->audio, gen->psg->audio};
+	if (audio_path) {
+		write_wav(audio_path, both, 2);
+	}
+	if (audio_ym_path) {
+		write_wav(audio_ym_path, both, 1);
+	}
+	if (audio_psg_path) {
+		write_wav(audio_psg_path, both + 1, 1);
+	}
+}
+
 /* --- Main --- */
 
 static void print_usage(void)
@@ -315,6 +388,10 @@ static void print_usage(void)
 		"  --screenshots DIR        Save a PNG of the frame before each recorded VBlank\n"
 		"  --screenshot-every N     Only every Nth recorded VBlank (default 1)\n"
 		"  --watch START[-END]      Print every write to this work RAM range (hex, repeatable)\n"
+		"  --audio FILE.wav         Write the mixed YM2612 + PSG output, 16-bit stereo\n"
+		"  --audio-ym FILE.wav      Write the YM2612 output alone\n"
+		"  --audio-psg FILE.wav     Write the PSG output alone\n"
+		"  --audio-rate HZ          Sample rate of the WAV files (default: audio rate in the config, 48000)\n"
 		"  --translated FILE        At the end, write every translated 68K instruction address\n"
 		"  --translated-z80 FILE    Same for the Z80\n",
 		BLASTEM_VERSION
@@ -386,6 +463,17 @@ int main(int argc, char **argv)
 					range[1] = range[0] + 1;
 				} else if (fields != 2) {
 					fatal_error("--watch expects START[-END] in hex, got %s\n", param);
+				}
+			} else if (!strcmp(opt, "audio")) {
+				audio_path = param;
+			} else if (!strcmp(opt, "audio-ym")) {
+				audio_ym_path = param;
+			} else if (!strcmp(opt, "audio-psg")) {
+				audio_psg_path = param;
+			} else if (!strcmp(opt, "audio-rate")) {
+				audio_rate = atoi(param);
+				if (audio_rate < 8000 || audio_rate > 192000) {
+					fatal_error("--audio-rate must be between 8000 and 192000\n");
 				}
 			} else if (!strcmp(opt, "translated")) {
 				trace.translated_path = param;
@@ -466,6 +554,18 @@ int main(int argc, char **argv)
 		fatal_error("Failed to detect system type for %s\n", romfname);
 	}
 
+	if (audio_path || audio_ym_path || audio_psg_path) {
+		if (!trace.out_path) {
+			fatal_error("--audio options require --trace\n");
+		}
+		if (!audio_rate) {
+			char *rate_str = tern_find_path(config, "audio\0rate\0", TVAL_PTR).ptrval;
+			audio_rate = rate_str ? atoi(rate_str) : 48000;
+		}
+		//must be enabled before the sound chips create their audio sources
+		headless_audio_capture(audio_rate);
+		trace.on_finish = write_audio;
+	}
 	//hash the image before system setup, which may byte swap it in place
 	sha256(cart.buffer, cart.size, trace.rom_sha256);
 	config = tern_insert_path(config, "io\0devices\0" "1\0", (tern_val){.ptrval = pad_type == 3 ? "gamepad3.1" : "gamepad6.1"}, TVAL_PTR);

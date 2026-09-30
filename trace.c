@@ -38,6 +38,7 @@ struct trace_context {
 	char        *screenshot_dir;
 	char        *translated_path;
 	char        *translated_z80_path;
+	void        (*on_finish)(genesis_context *gen);
 	uint32_t    first_frame;
 	uint32_t    last_frame;
 	uint32_t    screenshot_every;
@@ -222,6 +223,9 @@ static void write_translated(char *path, uint32_t (*dump)(void *, FILE *), void 
 
 static void finish(trace_context *trace, genesis_context *gen)
 {
+	if (trace->on_finish) {
+		trace->on_finish(gen);
+	}
 	if (trace->translated_path) {
 		write_translated(trace->translated_path, (uint32_t (*)(void *, FILE *))m68k_dump_translated, gen->m68k->options);
 	}
@@ -382,6 +386,7 @@ trace_context *trace_start(genesis_context *gen, trace_options *opts)
 	trace->screenshot_dir = opts->screenshot_dir;
 	trace->translated_path = opts->translated_path;
 	trace->translated_z80_path = opts->translated_z80_path;
+	trace->on_finish = opts->on_finish;
 	if (trace->screenshot_dir && !ensure_dir_exists(trace->screenshot_dir)) {
 		fatal_error("Could not create screenshot directory %s\n", trace->screenshot_dir);
 	}

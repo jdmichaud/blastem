@@ -18,7 +18,7 @@ The ROM file to debug is: `$ARGUMENTS`
 
 ## Launching the debugger
 
-blastdbg is a headless binary — no SDL, no window, no audio. Just run it directly:
+blastdbg is a headless binary — no SDL, no window, no sound output (trace mode can record the sound to WAV files). Just run it directly:
 
 ```
 ${CLAUDE_SKILL_DIR}/blastdbg <rom-file>
@@ -121,6 +121,8 @@ ${CLAUDE_SKILL_DIR}/blastdbg --trace /tmp/run.trc --frames 0-3599 --input pads.t
 ```
 
 Each record holds the VBlank number, whether the level 6 interrupt was taken, the cycle, the 68K registers, the 64 KB work RAM, optionally VRAM/CRAM/VSRAM/VDP registers/Z80 RAM, and every YM2612, PSG and Z80 bus write since the previous record with its cycle and 68K PC. Runs are deterministic: the same ROM, options and input give a byte-identical file.
+
+Add `--audio run.wav` (and `--audio-ym`, `--audio-psg` for each chip alone) to also record the sound BlastEm plays, as 16-bit stereo at 48 kHz, aligned with the trace's cycles.
 
 The input file has one line per VBlank with two hex button masks (pad 1, pad 2), bit 0 = up through bit 11 = mode. The full format, semantics and options are in `${CLAUDE_SKILL_DIR}/TRACE_FORMAT.md`. Read traces with `${CLAUDE_SKILL_DIR}/bdtrace.py`, as a Python module or from the command line:
 

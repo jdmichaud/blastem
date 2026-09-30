@@ -27,6 +27,8 @@ enum {
 	TRACE_SRC_Z80
 };
 
+typedef struct genesis_context genesis_context;
+
 typedef struct {
 	char     *out_path;
 	char     *input_path;
@@ -39,10 +41,11 @@ typedef struct {
 	uint32_t record_flags;
 	uint8_t  rom_sha256[32];
 	uint8_t  pad_type;
+	//called when the last record has been written, before the process exits
+	void     (*on_finish)(genesis_context *gen);
 } trace_options;
 
 typedef struct trace_context trace_context;
-typedef struct genesis_context genesis_context;
 
 trace_context *trace_start(genesis_context *gen, trace_options *opts);
 //called from sync_components after the VDP has caught up and before a pending interrupt is acknowledged

@@ -11,6 +11,7 @@ reference reader.
 blastdbg --trace FILE [--frames FIRST-LAST] [--input FILE] [--record LIST]
          [--screenshots DIR [--screenshot-every N]]
          [--translated FILE] [--translated-z80 FILE] [--watch START[-END]]...
+         [--audio FILE.wav] [--audio-ym FILE.wav] [--audio-psg FILE.wav] [--audio-rate HZ]
          [-p 3|6] [-r J|U|E] ROM
 ```
 
@@ -25,6 +26,10 @@ blastdbg --trace FILE [--frames FIRST-LAST] [--input FILE] [--record LIST]
 | `--translated FILE` | When the trace ends, write the start address of every translated 68K instruction (see `ta` in SKILL.md) |
 | `--translated-z80 FILE` | Same for the Z80 |
 | `--watch START[-END]` | Print every 68K write to this work RAM range on stdout, as `Write $FFxxxx.b = $vv ...` or `Write $FFxxxx.w = $vvvv pc=PPPPPP vblank=N cycle=C` (see `ww` in SKILL.md). Repeatable, up to 16 ranges. Does not change the trace |
+| `--audio FILE.wav` | Write the sound BlastEm plays (YM2612 + PSG mix), see Audio below |
+| `--audio-ym FILE.wav` | Write the YM2612 alone |
+| `--audio-psg FILE.wav` | Write the PSG alone |
+| `--audio-rate HZ` | Sample rate of the WAV files (default: `audio.rate` in the config, 48000) |
 | `-p 3\|6` | Pad type for both ports (default 3-button) |
 | `-r J\|U\|E` | Force the region |
 
@@ -174,6 +179,28 @@ including this record's capture cycle, sorted by cycle (ties keep their executio
 The 68K PC is exact: it is the start of the instruction doing the write. Z80 writes have no
 PC (flag clear, PC 0). Word writes to the Z80 bus log the byte that reaches it (the high
 byte). The Z80's writes to its own RAM are not logged.
+
+## Audio
+
+The WAV files are 16-bit stereo PCM. They hold what BlastEm's own mixer produces, computed with
+its code: each chip's output is low-pass filtered (`audio.lowpass_cutoff`, 3390 Hz by default),
+resampled to the output rate by linear interpolation, scaled by its gain (`audio.fm_gain`,
+`audio.psg_gain`, then `audio.gain`, all 0 dB by default), summed and clamped to 16 bits. The
+YM2612 is emulated as configured (`audio.fm_dac`, `zero_offset` by default, which gives the YM2612
+a constant DC offset while it is silent). The PSG, a mono chip, is written to both channels. The
+mix equals the YM2612 file plus the PSG file within one unit of rounding.
+
+Sample k is the instant k / rate seconds after power-on, so a master clock cycle c of the trace
+(record cycles, write cycles) is sample c × rate / master clock. Use the record's cycle to find
+where a VBlank's audio starts: VBlank 0 is not at cycle 0 (it is at cycle 768992 in Streets of Rage),
+so N × 896040 is off by that offset. The files end at the last record. Like the trace, the
+audio is deterministic: the same run gives byte-identical files.
+
+Measured on Streets of Rage: the PSG output starts 2 samples after the cycle of its first volume
+write (the low-pass filter's delay), and its pitch matches the tone registers exactly.
+
+Real-time playback also adjusts the resampling rate slightly to keep audio and video in sync.
+The capture doesn't, since it isn't paced by a sound card.
 
 ## Screenshots
 

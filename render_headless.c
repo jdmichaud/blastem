@@ -12,6 +12,8 @@
 #include "render.h"
 #include "render_audio.h"
 #include "blastem.h"
+#include "config.h"
+#include <math.h>
 
 static uint32_t framebuffers[2][512 * 512];
 static int fb_pitch = 512 * sizeof(uint32_t);
@@ -109,22 +111,114 @@ void render_destroy_window(uint8_t which) {}
 
 /* --- Audio stubs --- */
 
+/*
+ Audio capture. When enabled with headless_audio_capture(), every source's output is low-pass
+ filtered and resampled to the capture rate with the same code as render_audio.c, and appended
+ to a buffer that grows for the whole run. Sample i of every source is the same instant, so the
+ buffers can be mixed afterwards exactly like the real-time mixer does.
+ In the audio_source, back holds the samples, buffer_pos their count and mask the capacity.
+*/
+#define BUFFER_INC_RES 0x40000000UL
+
+static uint32_t capture_rate;
+
+void headless_audio_capture(uint32_t rate)
+{
+	capture_rate = rate;
+}
+
 audio_source *render_audio_source(uint64_t master_clock, uint64_t sample_divider, uint8_t channels)
 {
 	audio_source *src = calloc(1, sizeof(audio_source));
 	src->num_channels = channels;
+	src->gain_mult = 1.0f;
+	if (capture_rate) {
+		render_audio_adjust_clock(src, master_clock, sample_divider);
+		double lowpass_cutoff = get_lowpass_cutoff(config);
+		double rc = (1.0 / lowpass_cutoff) / (2.0 * M_PI);
+		src->dt = 1.0 / ((double)master_clock / (double)(sample_divider));
+		double alpha = src->dt / (src->dt + rc);
+		src->lowpass_alpha = (int32_t)(((double)0x10000) * alpha);
+	}
 	return src;
 }
 
-void render_audio_source_gaindb(audio_source *src, float gain) {}
+void render_audio_source_gaindb(audio_source *src, float gain)
+{
+	src->gain_mult = powf(10.0f, gain/20.0f);
+}
 
 void render_audio_adjust_clock(audio_source *src, uint64_t master_clock, uint64_t sample_divider)
 {
-	src->buffer_inc = ((uint64_t)1 << 32) * sample_divider / master_clock;
+	if (capture_rate) {
+		src->buffer_inc = ((BUFFER_INC_RES * (uint64_t)capture_rate) / master_clock) * sample_divider;
+	}
 }
 
-void render_put_mono_sample(audio_source *src, int16_t value) {}
-void render_put_stereo_sample(audio_source *src, int16_t left, int16_t right) {}
+static int16_t lowpass_sample(audio_source *src, int16_t last, int16_t current)
+{
+	int32_t tmp = current * src->lowpass_alpha + last * (0x10000 - src->lowpass_alpha);
+	current = tmp >> 16;
+	return current;
+}
+
+static void interp_sample(audio_source *src, int16_t last, int16_t current)
+{
+	if (src->buffer_pos == src->mask) {
+		src->mask = src->mask ? src->mask * 2 : 1 << 20;
+		src->back = realloc(src->back, src->mask * sizeof(int16_t));
+	}
+	int64_t tmp = last * ((src->buffer_fraction << 16) / src->buffer_inc);
+	tmp += current * (0x10000 - ((src->buffer_fraction << 16) / src->buffer_inc));
+	src->back[src->buffer_pos++] = tmp >> 16;
+}
+
+void render_put_mono_sample(audio_source *src, int16_t value)
+{
+	if (!capture_rate) {
+		return;
+	}
+	value = lowpass_sample(src, src->last_left, value);
+	src->buffer_fraction += src->buffer_inc;
+	while (src->buffer_fraction > BUFFER_INC_RES)
+	{
+		src->buffer_fraction -= BUFFER_INC_RES;
+		interp_sample(src, src->last_left, value);
+	}
+	src->last_left = value;
+}
+
+void render_put_stereo_sample(audio_source *src, int16_t left, int16_t right)
+{
+	if (!capture_rate) {
+		return;
+	}
+	left = lowpass_sample(src, src->last_left, left);
+	right = lowpass_sample(src, src->last_right, right);
+	src->buffer_fraction += src->buffer_inc;
+	while (src->buffer_fraction > BUFFER_INC_RES)
+	{
+		src->buffer_fraction -= BUFFER_INC_RES;
+		interp_sample(src, src->last_left, left);
+		interp_sample(src, src->last_right, right);
+	}
+	src->last_left = left;
+	src->last_right = right;
+}
+
+//number of captured sample frames and the interleaved samples of a source
+uint32_t headless_audio_samples(audio_source *src, int16_t **samples)
+{
+	*samples = src->back;
+	return src->buffer_pos / src->num_channels;
+}
+
+//master volume from the config, as applied by the real-time mixer
+float headless_audio_overall_gain(void)
+{
+	char *gain_str = tern_find_path(config, "audio\0gain\0", TVAL_PTR).ptrval;
+	return powf(10.0f, (gain_str ? atof(gain_str) : 0.0f)/20.0f);
+}
 void render_pause_source(audio_source *src) {}
 void render_resume_source(audio_source *src) {}
 
