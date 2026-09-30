@@ -12,6 +12,8 @@ mkdir -p "$SKILL_DIR"
 cp "$SCRIPT_DIR/debug-megadrive/SKILL.md" "$SKILL_DIR/"
 cp "$SCRIPT_DIR/blastdbg-static" "$SKILL_DIR/blastdbg"
 cp "$SCRIPT_DIR/dis-static" "$SKILL_DIR/dis"
+# blastdbg looks for its config and ROM database next to the executable
+cp "$SCRIPT_DIR/default.cfg" "$SCRIPT_DIR/systems.cfg" "$SCRIPT_DIR/rom.db" "$SKILL_DIR/"
 strip "$SKILL_DIR/blastdbg" "$SKILL_DIR/dis"
 
 echo "Installed:"
