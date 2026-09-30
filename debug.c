@@ -3,6 +3,7 @@
 #include "68kinst.h"
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #ifndef _WIN32
 #include <sys/select.h>
 #endif
@@ -10,6 +11,10 @@
 #include "util.h"
 #include "terminal.h"
 #include "z80inst.h"
+#include "ppm.h"
+#ifndef DISABLE_ZLIB
+#include "png.h"
+#endif
 
 #ifdef NEW_CORE
 #define Z80_OPTS opts
@@ -585,6 +590,65 @@ z80_context * zdebugger(z80_context * context, uint16_t address)
 static uint32_t branch_t;
 static uint32_t branch_f;
 
+static void save_screenshot(vdp_context *vdp, char *param)
+{
+	if (!param) {
+		fputs("ss command requires a file name\n", stderr);
+		return;
+	}
+	uint32_t scale = 1;
+	char *scale_str = find_param(param);
+	if (scale_str) {
+		scale_str[-1] = 0;
+		scale = atoi(scale_str);
+		if (scale < 1 || scale > 8) {
+			fputs("Screenshot scale must be between 1 and 8\n", stderr);
+			return;
+		}
+	}
+	uint32_t width, height, pitch;
+	uint32_t *frame = vdp_get_last_frame(vdp, &width, &height, &pitch);
+	if (!frame) {
+		fputs("No completed frame available, use fr to run at least one frame first\n", stderr);
+		return;
+	}
+	uint32_t out_width = width * scale, out_height = height * scale;
+	uint32_t *buffer = malloc(out_width * out_height * sizeof(uint32_t));
+	uint32_t *dst = buffer;
+	for (uint32_t y = 0; y < height; y++)
+	{
+		uint32_t *src = (uint32_t *)(((char *)frame) + pitch * y);
+		for (uint32_t sy = 0; sy < scale; sy++)
+		{
+			for (uint32_t x = 0; x < width; x++)
+			{
+				for (uint32_t sx = 0; sx < scale; sx++)
+				{
+					*(dst++) = src[x];
+				}
+			}
+		}
+	}
+	FILE *f = fopen(param, "wb");
+	if (!f) {
+		fprintf(stderr, "Could not open %s for writing\n", param);
+		free(buffer);
+		return;
+	}
+	size_t len = strlen(param);
+#ifndef DISABLE_ZLIB
+	if (len < 4 || strcasecmp(param + len - 4, ".ppm")) {
+		save_png(f, buffer, out_width, out_height, out_width * sizeof(uint32_t));
+	} else
+#endif
+	{
+		save_ppm(f, buffer, out_width, out_height, out_width * sizeof(uint32_t));
+	}
+	fclose(f);
+	free(buffer);
+	printf("Saved %dx%d screenshot to %s\n", out_width, out_height, param);
+}
+
 int run_debugger_command(m68k_context *context, uint32_t address, char *input_buf, m68kinst inst, uint32_t after)
 {
 	char * param;
@@ -854,6 +918,9 @@ int run_debugger_command(m68k_context *context, uint32_t address, char *input_bu
 			} else if (input_buf[1] == 'r') {
 				system->header.soft_reset(&system->header);
 				return 0;
+			} else if (input_buf[1] == 's') {
+				save_screenshot(system->vdp, find_param(input_buf));
+				break;
 			} else {
 				if (inst.op == M68K_RTS) {
 					after = m68k_read_long(context->aregs[7], context);
@@ -997,6 +1064,8 @@ void print_m68k_help()
 	printf("                           a breakpoint is hit\n");
 	printf("    vs                   - Print VDP sprite list\n");
 	printf("    vr                   - Print VDP register info\n");
+	printf("    ss FILE [SCALE]      - Save the last completed frame as PNG (or PPM\n");
+	printf("                           if FILE ends in .ppm), optionally upscaled\n");
 	printf("    fr [N]               - Run N frames (default 1), then break\n");
 	printf("    yc [CHANNEL NUM]     - Print YM-2612 channel info\n");
 	printf("    yt                   - Print YM-2612 timer info\n");

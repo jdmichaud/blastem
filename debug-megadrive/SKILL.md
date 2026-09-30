@@ -48,6 +48,23 @@ timeout 30 bash -c 'printf "n\nn\nn\nn\nn\np/x pc\np/x d0\nq\n" | ${CLAUDE_SKILL
 timeout 30 bash -c 'printf "b 1234\nc\np/x d0\np/x a0\nbt\nq\n" | ${CLAUDE_SKILL_DIR}/blastdbg <rom>'
 ```
 
+## Seeing the screen
+
+blastdbg renders every frame even though it has no window. `ss` saves the last **completed** frame (active display only, no borders: 320x224 in H40 mode, 256x224 in H32), so the image is always a whole frame, even when stopped mid-frame at a breakpoint. Open the saved PNG with the **Read** tool to look at it.
+
+Use `fr N` to let the game run for N frames. It stops right after frame N completes, so an `ss` afterwards shows exactly that frame. At 60 frames per second, `fr 60` is one second of game time.
+
+```bash
+timeout 30 bash -c 'printf "fr 600\nss /tmp/title.png 2\nq\n" | ${CLAUDE_SKILL_DIR}/blastdbg <rom>'
+```
+
+Then Read `/tmp/title.png`. A scale of 2 makes small text and sprites easier to read. Before the first frame completes (for example at the entry point) there is nothing to save, so run at least `fr 1` first.
+
+Notes:
+- `fr` is cancelled if a breakpoint is hit first. `p f` prints the current frame number.
+- Delete or avoid breakpoints in code that runs every frame (e.g. the VBlank handler) before using `fr`, or it will stop there instead.
+- Boot, logos and intros often take several hundred frames. Take screenshots along the way to see where the game is.
+
 ## Understanding the output
 
 When the debugger stops (at entry or a breakpoint), it prints the current instruction:
@@ -85,6 +102,7 @@ This is `ADDRESS: DISASSEMBLED_INSTRUCTION`. Each `>` in the output corresponds 
 | `sr` | Soft reset the emulated system |
 | `vs` | Print VDP sprite table |
 | `vr` | Print VDP register info |
+| `ss FILE [SCALE]` | Save the last completed frame as PNG (PPM if FILE ends in `.ppm`), upscaled by SCALE (1-8) |
 | `fr [N]` | Run N frames (default 1), then break |
 | `yc [N]` | Print YM-2612 channel info (all, or channel N: 1-6) |
 | `yt` | Print YM-2612 timer info |
@@ -266,6 +284,6 @@ Pipe through `head` or `grep` to focus on regions of interest.
 - All addresses in debugger commands are in **hexadecimal** (no prefix needed for `b` and `a`)
 - The `p` command uses `$` or `0x` prefix for memory reads
 - Hitting Enter with no input repeats the last command
-- The `co` (command) feature lets you script breakpoint actions: after `co N`, type commands line by line, then `end`
+- The `co` (command) feature lets you script breakpoint actions: after `co N`, type commands line by line, then `end`. Commands such as `ss` work there too, e.g. to take a screenshot every time a breakpoint is hit
 - In non-interactive mode, `co` requires: `co N\ncommand1\ncommand2\nend\n`
 - Informational output (ROM info, IO config) goes to stderr; debugger output goes to stdout
