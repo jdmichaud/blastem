@@ -1035,6 +1035,10 @@ void translate_shift(m68k_options * opts, m68kinst * inst, host_ea *src_op, host
 		cycles(&opts->gen, BUS);
 		//Memory shift
 		shift_ir(code, 1, dst_op->base, SZ_W);
+		if (inst->op == M68K_ASL) {
+			//shifting by 1 sets OF when the most significant bit changes, which is V for ASL
+			set_flag_cond(opts, CC_O, FLAG_V);
+		}
 	} else {
 		if (src_op->mode == MODE_IMMED) {
 			cycles(&opts->gen, (inst->extra.size == OPSIZE_LONG ? 8 : 6) + 2 * src_op->disp);
@@ -2203,6 +2207,8 @@ void translate_m68k_rot(m68k_options *opts, m68kinst *inst, host_ea *src_op, hos
 			} else {
 				set_flag(opts, 0, FLAG_C);
 			}
+			//rotates always clear V, even when the count is 0
+			set_flag(opts, 0, FLAG_V);
 			*end_off = code->cur - (end_off+1);
 		}
 		if (dst_op->mode == MODE_REG_DIRECT) {
