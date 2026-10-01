@@ -372,6 +372,8 @@ void zdebugger_print(z80_context * context, char format_char, char * param)
 	printf(format, param, value);
 }
 
+static void unbuffer_stdin(void);
+
 z80_context * zdebugger(z80_context * context, uint16_t address)
 {
 	static char last_cmd[1024];
@@ -381,6 +383,7 @@ z80_context * zdebugger(z80_context * context, uint16_t address)
 	z80inst inst;
 	genesis_context *system = context->system;
 	init_terminal();
+	unbuffer_stdin();
 	//Check if this is a user set breakpoint, or just a temporary one
 	bp_def ** this_bp = find_breakpoint(&zbreakpoints, address);
 	if (*this_bp) {
@@ -403,8 +406,9 @@ z80_context * zdebugger(z80_context * context, uint16_t address)
 	while(debugging) {
 		fputs(">", stdout);
 		if (!fgets(input_buf, sizeof(input_buf), stdin)) {
-			fputs("fgets failed", stderr);
-			break;
+			//nothing more will come, quit instead of running unattended
+			puts("End of input, quitting");
+			exit(0);
 		}
 		strip_nl(input_buf);
 		//hitting enter repeats last command
@@ -589,6 +593,17 @@ z80_context * zdebugger(z80_context * context, uint16_t address)
 
 static uint32_t branch_t;
 static uint32_t branch_f;
+
+//With buffered stdin, fgets can pull several lines into the stdio buffer while select()
+//only sees the file descriptor, so lines sent together would wait for more input
+static void unbuffer_stdin(void)
+{
+	static uint8_t done;
+	if (!done) {
+		setvbuf(stdin, NULL, _IONBF, 0);
+		done = 1;
+	}
+}
 
 static void save_screenshot(vdp_context *vdp, char *param)
 {
@@ -922,7 +937,10 @@ int run_debugger_command(m68k_context *context, uint32_t address, char *input_bu
 				{
 					fputs(">>", stdout);
 					fflush(stdout);
-					fgets(cmd_buf, sizeof(cmd_buf), stdin);
+					if (!fgets(cmd_buf, sizeof(cmd_buf), stdin)) {
+						//end of input, the main loop will notice and quit
+						break;
+					}
 					if (strcmp(cmd_buf, "end\n")) {
 						if (commands) {
 							char *tmp = commands;
@@ -1367,6 +1385,7 @@ void debugger(m68k_context * context, uint32_t address)
 	m68kinst inst;
 
 	init_terminal();
+	unbuffer_stdin();
 
 	sync_components(context, 0);
 	genesis_context *gen = context->system;
@@ -1456,8 +1475,9 @@ void debugger(m68k_context * context, uint32_t address)
 		}
 #endif
 		if (!fgets(input_buf, sizeof(input_buf), stdin)) {
-			fputs("fgets failed", stderr);
-			break;
+			//nothing more will come, quit instead of running unattended
+			puts("End of input, quitting");
+			exit(0);
 		}
 		strip_nl(input_buf);
 		//hitting enter repeats last command
