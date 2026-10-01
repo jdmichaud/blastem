@@ -198,7 +198,7 @@ This is `ADDRESS: DISASSEMBLED_INSTRUCTION`. Each `>` in the output corresponds 
 | `p/c VALUE` | Print as character |
 | `di VALUE` | Auto-display value at every breakpoint hit |
 | `di/x VALUE` | Auto-display in hex |
-| `se DEST VALUE` | Set register or address to VALUE |
+| `se DEST VALUE` | Set a register, the PC or memory to VALUE (see below) |
 | `sr` | Soft reset the emulated system |
 | `vs` | Print VDP sprite table |
 | `vr` | Print VDP register info |
@@ -243,10 +243,17 @@ Note: `$` in memory addresses must be escaped as `\$` inside bash strings. Use s
 ## `se` (set) command
 
 ```
-se d0 $1234       # set d0 to 0x1234
-se a0 d1          # set a0 to the value of d1
-se d0 0xFF        # set d0 to 255
+se d0 $1234           # set d0 to 0x1234
+se a0 d1              # set a0 to the value of d1
+se d0 255             # set d0 to 255 (a bare number is decimal)
+se $FF0100 $1234      # write the word $1234 to $FF0100
+se $FF0101.b $AB      # write a byte
+se $FF0104.l $DEADBEEF
+se pc 19D16           # jump to $19D16 and stop there (a bare number is a hex address, as for b and a)
 ```
+
+- Memory writes go through the normal memory map, so work RAM, VDP and I/O registers can be written; ROM can't. Word and long writes need an even address. The size defaults to `.w`.
+- `se pc` resumes execution at the new address and stops before its first instruction, so the next prompt shows it. It works after a stop by a breakpoint, a step (`n`, `s`, `o`, `a`) or `fv`, but not after `fr`: step once first. The game's stack and state are left as they are, so jumping into the middle of a routine is your responsibility.
 
 ## Z80 Debugger Commands
 

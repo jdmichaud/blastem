@@ -99,6 +99,10 @@ struct m68k_context {
 	uint8_t         should_return;
 	//called after a write to a RAM page trapped with m68k_trap_ram_writes
 	void            (*write_watch)(m68k_context *context, uint32_t address, uint32_t size);
+	//set by a breakpoint handler to resume execution at resume_pc instead of the breakpoint address
+	uint32_t        resume_pc_override;
+	uint8_t         resume_pc_set;
+	uint8_t         in_bp_handler;
 	uint8_t         ram_code_flags[];
 };
 

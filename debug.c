@@ -1178,8 +1178,61 @@ int run_debugger_command(m68k_context *context, uint32_t address, char *input_bu
 					}
 					(param[0] == 'd' ? context->dregs : context->aregs)[reg_num] = int_val;
 					break;
+				case 'p':
+					if (param[1] != 'c' || (param[2] && param[2] != ' ')) {
+						fprintf(stderr, "Invalid destination %s\n", param);
+						return 1;
+					}
+					if (!context->in_bp_handler) {
+						//stops from fr come from the sync code, which can't redirect execution
+						fputs("se pc only works when stopped by a breakpoint, a step or fv, use n or s first\n", stderr);
+						return 1;
+					}
+					if (val[0] != '$' && !(val[0] == '0' && val[1] == 'x') && val[0] != 'd' && val[0] != 'a') {
+						//a bare number is a hex address, as for b and a
+						int_val = strtol(val, NULL, 16);
+					}
+					if (int_val & 1) {
+						fprintf(stderr, "PC must be even, got %lX\n", int_val);
+						return 1;
+					}
+					//jump there and stop before its first instruction
+					context->resume_pc_override = int_val & 0xFFFFFF;
+					context->resume_pc_set = 1;
+					insert_breakpoint(context, int_val & 0xFFFFFF, debugger);
+					return 0;
+				case '$':
+				case '0': {
+					char *end;
+					uint32_t address = strtoul(param[0] == '$' ? param + 1 : param + 2, &end, 16) & 0xFFFFFF;
+					if (param[0] == '0' && param[1] != 'x') {
+						fprintf(stderr, "Invalid destination %s\n", param);
+						return 1;
+					}
+					char size = *end == '.' ? end[1] : 'w';
+					void **mem_pointers = (void **)context->mem_pointers;
+					if (size == 'b') {
+						write_byte(address, int_val, mem_pointers, &context->options->gen, context);
+					} else if (size == 'w' || size == 'l') {
+						if (address & 1) {
+							fprintf(stderr, "Word and long writes need an even address, got %X\n", address);
+							return 1;
+						}
+						if (size == 'l') {
+							write_word(address, int_val >> 16, mem_pointers, &context->options->gen, context);
+							address += 2;
+						}
+						write_word(address, int_val, mem_pointers, &context->options->gen, context);
+					} else {
+						fprintf(stderr, "Invalid size .%c, use .b, .w or .l\n", size);
+						return 1;
+					}
+					//keep translated code consistent if the game runs code from RAM
+					m68k_handle_code_write(address & ~1, context);
+					break;
+				}
 				default:
-					fprintf(stderr, "Invalid destinatino %s\n", param);
+					fprintf(stderr, "Invalid destination %s\n", param);
 				}
 				break;
 			} else if (input_buf[1] == 'r') {

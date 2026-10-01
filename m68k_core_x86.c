@@ -3222,6 +3222,18 @@ void init_m68k_opts(m68k_options * opts, memmap_chunk * memmap, uint32_t num_chu
 	//Restore context
 	call(code, opts->gen.load_context);
 	pop_r(code, opts->gen.scratch1);
+	//if the handler changed the PC, drop the return address into the patched instruction
+	//and continue at the native code for the new address instead
+	cmp_irdisp(code, 0, opts->gen.context_reg, offsetof(m68k_context, resume_pc_set), SZ_B);
+	code_ptr no_override = code->cur + 1;
+	jcc(code, CC_Z, code->cur + 2);
+	mov_irdisp(code, 0, opts->gen.context_reg, offsetof(m68k_context, resume_pc_set), SZ_B);
+	mov_rdispr(code, opts->gen.context_reg, offsetof(m68k_context, resume_pc_override), opts->gen.scratch1, SZ_D);
+	//look up the native address while the stack is as native_addr expects, then drop the return address
+	call(code, opts->native_addr);
+	add_ir(code, 2 * sizeof(void *), RSP, SZ_PTR);
+	jmp_r(code, opts->gen.scratch1);
+	*no_override = code->cur - (no_override + 1);
 	//do prologue stuff
 	cmp_rr(code, opts->gen.cycles, opts->gen.limit, SZ_D);
 	code_ptr jmp_off = code->cur + 1;

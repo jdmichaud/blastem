@@ -850,7 +850,9 @@ m68k_context *m68k_bp_dispatcher(m68k_context *context, uint32_t address)
 {
 	m68k_debug_handler handler = find_breakpoint(context, address);
 	if (handler) {
+		context->in_bp_handler = 1;
 		handler(context, address);
+		context->in_bp_handler = 0;
 	} else {
 		//spurious breakoint?
 		warning("Spurious breakpoing at %X\n", address);
