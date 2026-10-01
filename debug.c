@@ -157,8 +157,16 @@ void debugger_print(m68k_context *context, char format_char, char *param, uint32
 		for (int flag = 0; flag < 5; flag++) {
 			value |= context->flags[flag] << (4-flag);
 		}
-	} else if(param[0] == 'c') {
-		value = context->current_cycle;
+	} else if(param[0] == 'c' || param[0] == 'v') {
+		//64-bit values: the master clock cycle since power-on, or the number of the last VBlank (-1 before the first)
+		genesis_context *gen = context->system;
+		if (param[0] == 'c') {
+			uint64_t cycle = gen->cycle_base + context->current_cycle;
+			printf(format_char == 'x' ? "%s: %llx\n" : format_char == 'X' ? "%s: %llX\n" : "%s: %llu\n", param, (unsigned long long)cycle);
+		} else {
+			printf("%s: %d\n", param, (int)gen->vdp->vint_count - 1);
+		}
+		return;
 	} else if(param[0] == 'f') {
 		genesis_context *gen = context->system;
 		value = gen->vdp->frame;
@@ -1235,6 +1243,16 @@ int run_debugger_command(m68k_context *context, uint32_t address, char *input_bu
 				system->debug_frame_target = system->vdp->frame + frames;
 				system->debug_frame_break = 1;
 				return 0;
+			} else if (input_buf[1] == 'v') {
+				param = find_param(input_buf);
+				int count = param ? atoi(param) : 1;
+				if (count < 1) {
+					fputs("fv count must be at least 1\n", stderr);
+					break;
+				}
+				system->debug_vint_remaining = count;
+				system->debug_vint_break = 1;
+				return 0;
 			}
 			fprintf(stderr, "Unrecognized debugger command %s\nUse '?' for help.\n", input_buf);
 			break;
@@ -1338,7 +1356,8 @@ void print_m68k_help()
 	printf("    sr                   - Soft reset\n");
 	printf("    c                    - Continue\n");
 	printf("    bt                   - Print a backtrace\n");
-	printf("    p[/(x|X|d|c)] VALUE  - Print a register or memory location\n");
+	printf("    p[/(x|X|d|c)] VALUE  - Print a register or memory location (c: cycle since\n");
+	printf("                           power-on, v: last VBlank number, f: VDP frame count)\n");
 	printf("    di[/(x|X|d|c)] VALUE - Print a register or memory location each time\n");
 	printf("                           a breakpoint is hit\n");
 	printf("    vs                   - Print VDP sprite list\n");
@@ -1348,6 +1367,8 @@ void print_m68k_help()
 	printf("    ss FILE [SCALE]      - Save the last completed frame as PNG (or PPM\n");
 	printf("                           if FILE ends in .ppm), optionally upscaled\n");
 	printf("    fr [N]               - Run N frames (default 1), then break\n");
+	printf("    fv [N]               - Run to the Nth next VBlank interrupt (default 1) and break\n");
+	printf("                           before its handler runs\n");
 	printf("    jp [PAD] BUTTON...   - Press and hold gamepad buttons (PAD 1 or 2)\n");
 	printf("    jr [PAD] [BUTTON...] - Release gamepad buttons (all if none given)\n");
 	printf("    j                    - Show held gamepad buttons\n");
@@ -1393,8 +1414,12 @@ void debugger(m68k_context * context, uint32_t address)
 	if (gen->debug_frame_break == 2) {
 		printf("Frame %d reached\n", gen->vdp->frame);
 	}
-	//any stop cancels a pending fr
+	if (gen->debug_vint_break == 2) {
+		printf("VBlank %d interrupt\n", (int)gen->vdp->vint_count - 1);
+	}
+	//any stop cancels a pending fr or fv
 	gen->debug_frame_break = 0;
+	gen->debug_vint_break = 0;
 	//probably not necessary, but let's play it safe
 	address &= 0xFFFFFF;
 	if (address == branch_t) {

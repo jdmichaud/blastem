@@ -67,7 +67,8 @@ timeout 30 bash -c 'printf "fr 600\nss /tmp/title.png 2\nq\n" | ${CLAUDE_SKILL_D
 Then Read `/tmp/title.png`. A scale of 2 makes small text and sprites easier to read. Before the first frame completes (for example at the entry point) there is nothing to save, so run at least `fr 1` first.
 
 Notes:
-- `fr` is cancelled if a breakpoint is hit first. `p f` prints the current frame number.
+- `fr` is cancelled if a breakpoint is hit first. `p v` prints the current VBlank number.
+- `fr N` stops when the VDP finishes drawing a frame, which is already inside that frame's VBlank interrupt handler. To stop at a well-defined point of the game's frame loop, use `fv N` instead: it stops when the VBlank interrupt is accepted, before the handler's first instruction (the same point as trace records), and prints `VBlank N interrupt`. A VBlank whose interrupt the game has masked doesn't count.
 - Delete or avoid breakpoints in code that runs every frame (e.g. the VBlank handler) before using `fr`, or it will stop there instead.
 - Boot, logos and intros often take several hundred frames. Take screenshots along the way to see where the game is.
 
@@ -98,6 +99,8 @@ fr 5
 jr 1
 jr 2
 ```
+
+Buttons pressed or released while stopped by `fv` at VBlank N are what that VBlank's handler reads, the same as input line N of a trace. After `fr`, the handler may already have read the pad, so the change can land one VBlank later.
 
 Every run starts from power-on, so to reach a given point in the game, replay the whole input sequence. Build it up step by step, checking with `ss` each time.
 
@@ -202,6 +205,7 @@ This is `ADDRESS: DISASSEMBLED_INSTRUCTION`. Each `>` in the output corresponds 
 | `vd PREFIX` | Dump VRAM, CRAM, VSRAM and VDP registers to `PREFIX.vram`, `.cram`, `.vsram`, `.regs` |
 | `ss FILE [SCALE]` | Save the last completed frame as PNG (PPM if FILE ends in `.ppm`), upscaled by SCALE (1-8) |
 | `fr [N]` | Run N frames (default 1), then break |
+| `fv [N]` | Run to the Nth next VBlank interrupt (default 1) and break before its handler runs; prints the VBlank number |
 | `jp [PAD] BUTTON...` | Press and hold gamepad buttons (PAD is 1 or 2, default 1) |
 | `jr [PAD] [BUTTON...]` | Release gamepad buttons (all buttons on the pad if none given) |
 | `j` | Show buttons currently held on both pads |
@@ -224,8 +228,9 @@ This is `ADDRESS: DISASSEMBLED_INSTRUCTION`. Each `>` in the output corresponds 
 | `a0`-`a7` | Address registers (a7 = stack pointer) |
 | `sr` | Status register (flags + supervisor byte) |
 | `pc` | Program counter (current address) |
-| `c` | Current CPU cycle count |
-| `f` | Current VDP frame number |
+| `c` | Master clock cycles since power-on (64-bit, the clock trace files use) |
+| `v` | Number of the last VBlank (-1 before the first), as trace files number them |
+| `f` | Number of frames the VDP has completed (lags `v` by about one) |
 | `d0.w`, `d0.b` | Word or byte portion of a register |
 | `$ADDRESS` or `0xADDRESS` | Read **word** at memory address |
 | `$ADDRESS.l` | Read **long** (32-bit) at memory address |

@@ -77,6 +77,8 @@ struct genesis_context {
 	uint8_t         tmss;
 	uint8_t         vdp_unlocked;
 	uint8_t         debug_frame_break; //1 = waiting for debug_frame_target, 2 = target reached
+	uint8_t         debug_vint_break; //1 = waiting for debug_vint_remaining VBlank interrupts, 2 = stopped at one
+	uint32_t        debug_vint_remaining;
 	eeprom_state    eeprom;
 	nor_state       nor;
 };

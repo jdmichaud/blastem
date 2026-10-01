@@ -492,6 +492,14 @@ m68k_context * sync_components(m68k_context * context, uint32_t address)
 	if (gen->trace) {
 		trace_sync(gen);
 	}
+	if (context->int_ack == 6 && gen->debug_vint_break == 1 && !--gen->debug_vint_remaining) {
+		//the exception frame is pushed and the vector read: break before the handler's first instruction
+		gen->debug_vint_break = 2;
+		void **mem_pointers = (void **)context->mem_pointers;
+		uint32_t handler = read_word(0x78, mem_pointers, &context->options->gen, context) << 16
+			| read_word(0x7A, mem_pointers, &context->options->gen, context);
+		insert_breakpoint(context, handler, gen->header.debugger_type == DEBUGGER_NATIVE ? debugger : gdb_debug_enter);
+	}
 	if (context->int_ack) {
 		//printf("acknowledging %d @ %d:%d, vcounter: %d, hslot: %d\n", context->int_ack, context->current_cycle, v_context->cycles, v_context->vcounter, v_context->hslot);
 		vdp_int_ack(v_context);
