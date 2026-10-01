@@ -1471,7 +1471,13 @@ void translate_m68k_unary(m68k_options *opts, m68kinst *inst, uint32_t flag_mask
 void translate_m68k_abcd_sbcd(m68k_options *opts, m68kinst *inst, host_ea *src_op, host_ea *dst_op)
 {
 	code_info *code = &opts->gen.code;
+	//a memory destination other than -(An) is written back to the address in scratch2
+	uint8_t preserve_address = inst->dst.addr_mode != MODE_REG && inst->dst.addr_mode != MODE_AREG && inst->dst.addr_mode != MODE_AREG_PREDEC;
 	if (inst->op == M68K_NBCD) {
+		if (preserve_address) {
+			//the operand goes in scratch2 below, so save the address first
+			push_r(code, opts->gen.scratch2);
+		}
 		if (dst_op->base != opts->gen.scratch2) {
 			if (dst_op->mode == MODE_REG_DIRECT) {
 				mov_rr(code, dst_op->base, opts->gen.scratch2, SZ_B);
@@ -1496,7 +1502,7 @@ void translate_m68k_abcd_sbcd(m68k_options *opts, m68kinst *inst, host_ea *src_o
 			}
 		}
 	}
-	if (inst->dst.addr_mode != MODE_REG && inst->dst.addr_mode != MODE_AREG && inst->dst.addr_mode != MODE_AREG_PREDEC) {
+	if (preserve_address && inst->op != M68K_NBCD) {
 		//destination is in memory so we need to preserve scratch2 for the write at the end
 		push_r(code, opts->gen.scratch2);
 	}
@@ -1591,7 +1597,7 @@ void translate_m68k_abcd_sbcd(m68k_options *opts, m68kinst *inst, host_ea *src_o
 			mov_rrdisp(code, opts->gen.scratch1, dst_op->base, dst_op->disp, SZ_B);
 		}
 	}
-	if (inst->dst.addr_mode != MODE_REG && inst->dst.addr_mode != MODE_AREG && inst->dst.addr_mode != MODE_AREG_PREDEC) {
+	if (preserve_address) {
 		//destination is in memory so we need to restore scratch2 for the write at the end
 		pop_r(code, opts->gen.scratch2);
 	}
